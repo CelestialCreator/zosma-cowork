@@ -16,6 +16,7 @@ use metaagents::engine::MetaAgentsEngine;
 use metaagents::events::{categorize_engine_error, CoworkErrorPayload, CoworkEvent};
 use metaagents::ext_installer::{self as ext_installer, InstallResult};
 use metaagents::extensions::ExtensionInfo;
+use metaagents::sidecar::Sidecar;
 use serde::{Deserialize, Serialize};
 
 mod telemetry;
@@ -70,6 +71,7 @@ struct AppState {
     config: Arc<std::sync::RwLock<ConfigSnapshot>>,
     #[allow(dead_code)] // accessed via Tauri state mechanism
     telemetry_queue: telemetry::TelemetryQueue,
+    sidecar: Arc<tokio::sync::Mutex<Option<Sidecar>>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -370,6 +372,127 @@ async fn list_auth_providers() -> Vec<String> {
 }
 
 // ---------------------------------------------------------------------------
+// Commands — sidecar (Pi extension compatibility)
+// ---------------------------------------------------------------------------
+
+/// Resolve the sidecar entry point path (dev vs prod).
+fn resolve_sidecar_entry(app: &tauri::AppHandle) -> std::path::PathBuf {
+    use tauri::Manager;
+
+    // Try bundled resource first (production)
+    if let Ok(path) = app
+        .path()
+        .resolve("sidecar/sidecar.mjs", tauri::path::BaseDirectory::Resource)
+    {
+        return path;
+    }
+
+    // Fallback for dev mode: resolve relative to project root
+    let dev_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("src-sidecar")
+        .join("sidecar.mjs");
+    if dev_path.exists() {
+        return dev_path;
+    }
+
+    // Last resort: assume it's next to the binary
+    std::path::PathBuf::from("sidecar.mjs")
+}
+
+/// Start the Node.js sidecar process for Pi extension compatibility.
+#[tauri::command]
+async fn start_sidecar(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let entry = resolve_sidecar_entry(&app);
+    log::info!("Sidecar entry point: {}", entry.display());
+
+    let mut sidecar_guard = state.sidecar.lock().await;
+    if sidecar_guard.is_some() && sidecar_guard.as_ref().unwrap().is_running().await {
+        return Ok(serde_json::json!({"status": "already_running"}));
+    }
+
+    let sidecar = Sidecar::new(None, entry);
+    sidecar.start().await.map_err(|e| e.to_string())?;
+    *sidecar_guard = Some(sidecar);
+
+    Ok(serde_json::json!({"status": "started"}))
+}
+
+/// Invoke a tool in a loaded extension via the sidecar.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SidecarInvokePayload {
+    extension_id: String,
+    tool_name: String,
+    #[serde(default)]
+    args: serde_json::Value,
+}
+
+#[tauri::command]
+async fn sidecar_invoke(
+    payload: SidecarInvokePayload,
+    state: tauri::State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let sidecar_guard = state.sidecar.lock().await;
+    let sidecar = sidecar_guard
+        .as_ref()
+        .ok_or_else(|| "Sidecar not started. Call start_sidecar first.".to_string())?;
+
+    sidecar
+        .invoke_tool(&payload.extension_id, &payload.tool_name, payload.args)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// List all available tools in an extension via the sidecar.
+#[tauri::command]
+async fn sidecar_list_tools(
+    extension_id: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let sidecar_guard = state.sidecar.lock().await;
+    let sidecar = sidecar_guard
+        .as_ref()
+        .ok_or_else(|| "Sidecar not started. Call start_sidecar first.".to_string())?;
+
+    sidecar
+        .list_tools(&extension_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Load an extension from a filesystem path via the sidecar.
+#[tauri::command]
+async fn sidecar_load_extension(
+    extension_path: String,
+    state: tauri::State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let sidecar_guard = state.sidecar.lock().await;
+    let sidecar = sidecar_guard
+        .as_ref()
+        .ok_or_else(|| "Sidecar not started. Call start_sidecar first.".to_string())?;
+
+    sidecar
+        .load_extension(&extension_path)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Check if the sidecar is running.
+#[tauri::command]
+async fn sidecar_status(state: tauri::State<'_, AppState>) -> Result<bool, String> {
+    let sidecar_guard = state.sidecar.lock().await;
+    match sidecar_guard.as_ref() {
+        Some(s) => Ok(s.is_running().await),
+        None => Ok(false),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Commands — pi CLI (welcome flow)
 // ---------------------------------------------------------------------------
 
@@ -457,6 +580,7 @@ pub fn run() {
             engine,
             config,
             telemetry_queue,
+            sidecar: Arc::new(tokio::sync::Mutex::new(None)),
         })
         .setup(move |app| {
             if cfg!(debug_assertions) {
@@ -498,6 +622,12 @@ pub fn run() {
             save_auth_key,
             has_any_credentials,
             list_auth_providers,
+            // Sidecar (Pi extension compatibility)
+            start_sidecar,
+            sidecar_invoke,
+            sidecar_list_tools,
+            sidecar_load_extension,
+            sidecar_status,
             // Pi CLI (welcome flow)
             check_pi_status,
             install_pi,

@@ -16,6 +16,8 @@
 //! | **[[engine]]** | `MetaAgentsEngine` managing session lifecycle (create/get/drop) |
 //! | **[[config]]** | Read pi settings and model registry from disk |
 //! | **[[extensions]]** | Discover extensions from local dirs and settings packages |
+//! | **[[ext_installer]]** | Install/uninstall extensions from npm, git, or local paths |
+//! | **[[sidecar]]** | Node.js sidecar for Pi extension compatibility (IPC via jiti) |
 //!
 //! ## Re-exports
 //!
@@ -53,6 +55,9 @@ pub mod extensions;
 
 /// Extension installer — install/uninstall extensions from npm, git, or local paths.
 pub mod ext_installer;
+
+/// Node.js sidecar for Pi extension compatibility (IPC via jiti).
+pub mod sidecar;
 
 /// Crate version, exposed for diagnostic surfaces (e.g. About dialog).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
