@@ -266,6 +266,96 @@ async fn reload_sidecar(s: State<'_, AppState>) -> Result<Value, String> {
 }
 
 #[tauri::command]
+async fn list_sessions(s: State<'_, AppState>) -> Result<Value, String> {
+    scmd_r(
+        &s,
+        &serde_json::json!({"type":"list_sessions","id":"ls"}),
+        std::time::Duration::from_secs(10),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn save_session(
+    sid: String,
+    title: String,
+    messages: Value,
+    model: Option<String>,
+    provider: Option<String>,
+    s: State<'_, AppState>,
+) -> Result<Value, String> {
+    scmd_r(
+        &s,
+        &serde_json::json!({
+            "type":"save_session",
+            "id": sid,
+            "title": title,
+            "messages": messages,
+            "model": model,
+            "provider": provider,
+        }),
+        std::time::Duration::from_secs(10),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn load_session(session_file: String, s: State<'_, AppState>) -> Result<Value, String> {
+    scmd_r(
+        &s,
+        &serde_json::json!({"type":"load_session","id":"ld","sessionFile": session_file}),
+        std::time::Duration::from_secs(10),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn delete_session(session_file: String, s: State<'_, AppState>) -> Result<Value, String> {
+    scmd_r(
+        &s,
+        &serde_json::json!({"type":"delete_session","id":"dl","sessionFile": session_file}),
+        std::time::Duration::from_secs(10),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn new_session(s: State<'_, AppState>) -> Result<Value, String> {
+    scmd_r(
+        &s,
+        &serde_json::json!({"type":"new_session","id":"ns"}),
+        std::time::Duration::from_secs(10),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn get_settings(s: State<'_, AppState>) -> Result<Value, String> {
+    scmd_r(
+        &s,
+        &serde_json::json!({"type":"get_settings","id":"gs"}),
+        std::time::Duration::from_secs(10),
+    )
+    .await
+    .map(|r| {
+        r.get("settings")
+            .cloned()
+            .unwrap_or(Value::Object(Default::default()))
+    })
+}
+
+#[tauri::command]
+async fn save_settings(settings: Value, s: State<'_, AppState>) -> Result<Value, String> {
+    let mut payload = serde_json::json!({"type":"save_settings","id":"ss"});
+    if let Some(obj) = settings.as_object() {
+        for (k, v) in obj {
+            payload[k] = v.clone();
+        }
+    }
+    scmd_r(&s, &payload, std::time::Duration::from_secs(10)).await
+}
+
+#[tauri::command]
 async fn open_url(url: String) -> Result<(), String> {
     let st = std::process::Command::new("sh")
         .arg("-c")
@@ -336,6 +426,13 @@ pub fn run() {
             save_auth_key,
             has_credentials,
             reload_sidecar,
+            list_sessions,
+            save_session,
+            load_session,
+            delete_session,
+            new_session,
+            get_settings,
+            save_settings,
             open_url,
         ])
         .run(tauri::generate_context!())

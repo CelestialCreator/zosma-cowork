@@ -4,10 +4,11 @@ import type {
 	PiEvent,
 	PiMessageUpdateEvent,
 	PiToolExecutionEndEvent,
+	PiToolExecutionStartEvent,
 	PiToolExecutionUpdateEvent,
 } from "@/types/pi-events";
 import { Channel, invoke } from "@tauri-apps/api/core";
-import { useCallback, useReducer } from "react";
+import { useCallback, useReducer, useState } from "react";
 
 export interface StreamState {
 	messages: ChatMessage[];
@@ -16,6 +17,13 @@ export interface StreamState {
 	status: "idle" | "thinking" | "tool_call" | "responding" | "error";
 	error: string | null;
 }
+
+/** Granular tool execution phase for richer status display */
+export type ToolPhase =
+	| { type: "calling"; toolName: string; args: Record<string, unknown> }
+	| { type: "executing"; toolName: string; partialOutput: string }
+	| { type: "done"; toolName: string }
+	| { type: "error"; toolName: string; message: string };
 
 export type StreamAction =
 	| { type: "START_STREAM"; prompt: string }
@@ -29,6 +37,12 @@ export type StreamAction =
 			result: string;
 			status: "running" | "completed" | "error";
 			isError?: boolean;
+			details?: Record<string, unknown>;
+	  }
+	| {
+			type: "TOOL_PARTIAL_OUTPUT";
+			id: string;
+			partialOutput: string;
 	  }
 	| { type: "TURN_RESET" }
 	| { type: "STREAM_COMPLETE" }
@@ -43,6 +57,9 @@ export const INITIAL_STATE: StreamState = {
 	status: "idle",
 	error: null,
 };
+
+/** Initial tool phase state */
+export const INITIAL_TOOL_PHASE: ToolPhase | null = null;
 
 export function streamReducer(state: StreamState, action: StreamAction): StreamState {
 	switch (action.type) {
@@ -151,7 +168,24 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
 									status: action.status,
 									result: action.result,
 									isError: action.isError,
+									details: action.details,
 								}
+							: tc,
+					),
+				},
+			};
+		}
+
+		case "TOOL_PARTIAL_OUTPUT": {
+			const msg = state.streamingMessage;
+			if (!msg || !msg.toolCalls) return state;
+			return {
+				...state,
+				streamingMessage: {
+					...msg,
+					toolCalls: msg.toolCalls.map((tc) =>
+						tc.id === action.id
+							? { ...tc, partialOutput: action.partialOutput }
 							: tc,
 					),
 				},
@@ -222,6 +256,7 @@ function extractToolCallInfo(tc: {
 
 export function usePiStream() {
 	const [state, dispatch] = useReducer(streamReducer, INITIAL_STATE);
+	const [toolPhase, setToolPhase] = useState<ToolPhase | null>(null);
 
 	const startStream = useCallback(async (text: string) => {
 		dispatch({ type: "START_STREAM", prompt: text });
@@ -275,13 +310,34 @@ export function usePiStream() {
 						break;
 					}
 
+					case "tool_execution_start": {
+						const te = event as PiToolExecutionStartEvent;
+						setToolPhase({
+							type: "calling",
+							toolName: te.toolName,
+							args: te.args as Record<string, unknown>,
+						});
+						break;
+					}
+
 					case "tool_execution_update": {
 						const te = event as PiToolExecutionUpdateEvent;
+						const partialText = (te.partialResult?.content || []).map((c) => c.text).join("");
 						dispatch({
 							type: "TOOL_CALL_UPDATE",
 							id: te.toolCallId,
-							result: (te.partialResult?.content || []).map((c) => c.text).join(""),
+							result: partialText,
 							status: "running",
+						});
+						dispatch({
+							type: "TOOL_PARTIAL_OUTPUT",
+							id: te.toolCallId,
+							partialOutput: partialText,
+						});
+						setToolPhase({
+							type: "executing",
+							toolName: te.toolName,
+							partialOutput: partialText,
 						});
 						break;
 					}
@@ -294,7 +350,13 @@ export function usePiStream() {
 							result: (te.result?.content || []).map((c) => c.text).join(""),
 							status: te.isError ? "error" : "completed",
 							isError: te.isError,
+							details: te.result?.details as Record<string, unknown> | undefined,
 						});
+						setToolPhase(
+							te.isError
+								? { type: "error", toolName: te.toolName, message: "Tool failed" }
+								: { type: "done", toolName: te.toolName },
+						);
 						break;
 					}
 
@@ -318,7 +380,7 @@ export function usePiStream() {
 		};
 
 		try {
-			await invoke("send_prompt", { text, channel });
+			await invoke("send_prompt", { text, ch: channel });
 		} catch (err) {
 			dispatch({
 				type: "STREAM_ERROR",
@@ -336,5 +398,5 @@ export function usePiStream() {
 		}
 	}, []);
 
-	return { state, startStream, abortStream, dispatch };
+	return { state, startStream, abortStream, dispatch, toolPhase };
 }
