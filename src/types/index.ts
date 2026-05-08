@@ -23,6 +23,10 @@ export interface ToolCallInfo {
 	status: "running" | "completed" | "error";
 	result?: string;
 	isError?: boolean;
+	/** Structured details from pi tool execution (diff, truncation, etc.) */
+	details?: Record<string, unknown>;
+	/** Partial/streaming output while tool is running */
+	partialOutput?: string;
 }
 
 // Extension info from the metaagents engine

@@ -3,6 +3,7 @@ import { ErrorBanner } from "@/components/ErrorBanner";
 import { MessageInput } from "@/components/MessageInput";
 import { StatusBar } from "@/components/StatusBar";
 import type { ChatMessage, ModelInfo } from "@/types";
+import type { ToolPhase } from "@/hooks/usePiStream";
 import { useCallback, useEffect, useRef } from "react";
 
 export type StreamStateStatus = "idle" | "thinking" | "tool_call" | "responding" | "error";
@@ -19,6 +20,7 @@ interface ChatViewProps {
 	models?: ModelInfo[];
 	currentModelId?: string;
 	onModelSelect?: (provider: string, modelId: string) => void;
+	toolPhase?: ToolPhase | null;
 }
 
 export function ChatView({
@@ -33,6 +35,7 @@ export function ChatView({
 	models,
 	currentModelId,
 	onModelSelect,
+	toolPhase,
 }: ChatViewProps) {
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -105,6 +108,7 @@ export function ChatView({
 				isRunning={isRunning}
 				status={status}
 				streamingMessage={streamingMessage}
+				toolPhase={toolPhase}
 				onAbort={onAbort}
 			/>
 

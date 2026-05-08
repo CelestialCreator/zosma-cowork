@@ -12,7 +12,14 @@
  *                      {"type":"error", "id":"...", "message":"..."}
  */
 
-import { existsSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
@@ -69,6 +76,50 @@ interface ReloadCommand {
 	id: string;
 }
 
+interface SaveSessionCommand {
+	type: "save_session";
+	id: string;
+	/** Session display title */
+	title: string;
+	/** Session messages (ChatMessage array) */
+	messages: unknown[];
+	/** Model info */
+	model?: string;
+	provider?: string;
+}
+
+interface LoadSessionCommand {
+	type: "load_session";
+	id: string;
+	/** Session file name (from list_sessions) */
+	sessionFile: string;
+}
+
+interface DeleteSessionCommand {
+	type: "delete_session";
+	id: string;
+	/** Session file name to delete */
+	sessionFile: string;
+}
+
+interface NewSessionCommand {
+	type: "new_session";
+	id: string;
+}
+
+interface GetSettingsCommand {
+	type: "get_settings";
+	id: string;
+}
+
+interface SaveSettingsCommand {
+	type: "save_settings";
+	id: string;
+	defaultModel?: string;
+	defaultProvider?: string;
+	[key: string]: unknown;
+}
+
 type Command =
 	| InitCommand
 	| GetModelsCommand
@@ -76,7 +127,13 @@ type Command =
 	| AbortCommand
 	| SetModelCommand
 	| SaveAuthCommand
-	| ReloadCommand;
+	| ReloadCommand
+	| SaveSessionCommand
+	| LoadSessionCommand
+	| DeleteSessionCommand
+	| NewSessionCommand
+	| GetSettingsCommand
+	| SaveSettingsCommand;
 
 // ---------------------------------------------------------------------------
 // Logger (stderr — never interferes with stdout protocol)
@@ -103,10 +160,6 @@ function defaultZosmaDir(): string {
 	return join(home, ".zosmaai");
 }
 
-function coworkDir(): string {
-	return zosmaAgentDir(defaultZosmaDir()); // ~/.zosmaai/cowork
-}
-
 function zosmaAgentDir(zosmaDir: string): string {
 	return join(zosmaDir, "cowork");
 }
@@ -115,6 +168,10 @@ function ensureDir(dir: string): void {
 	if (!existsSync(dir)) {
 		mkdirSync(dir, { recursive: true });
 	}
+}
+
+function sessionsDir(zosmaDir: string): string {
+	return join(zosmaAgentDir(zosmaDir), "sessions");
 }
 
 /**
@@ -134,6 +191,184 @@ function cleanStaleLocks(dir: string): void {
 			}
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Session persistence helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * List all session files with their metadata headers.
+ * Returns sorted by most recent first.
+ */
+function listSessionFiles(zosmaDir: string): Array<{
+	file: string;
+	title: string;
+	model?: string;
+	provider?: string;
+	messageCount: number;
+	createdAt: number;
+	lastActivity: number;
+}> {
+	const sDir = sessionsDir(zosmaDir);
+	if (!existsSync(sDir)) return [];
+
+	const files = readdirSync(sDir)
+		.filter((f) => f.endsWith(".jsonl"))
+		.sort()
+		.reverse();
+
+	const sessions: Array<{
+		file: string;
+		title: string;
+		model?: string;
+		provider?: string;
+		messageCount: number;
+		createdAt: number;
+		lastActivity: number;
+	}> = [];
+
+	for (const file of files) {
+		try {
+			const filePath = join(sDir, file);
+			const content = readFileSync(filePath, "utf-8");
+			const lines = content.trim().split("\n");
+			if (lines.length === 0) continue;
+
+			// First line is header
+			const header = JSON.parse(lines[0]);
+			if (header.type !== "session") continue;
+
+			// Count messages (non-header lines)
+			const messageCount = lines.slice(1).filter((l) => l.trim()).length;
+
+			// Last activity is last message timestamp or header timestamp
+			let lastActivity = header.createdAt || 0;
+			if (lines.length > 1) {
+				try {
+					const lastLine = JSON.parse(lines[lines.length - 1]);
+					lastActivity = lastLine.timestamp || lastActivity;
+				} catch {
+					// ignore
+				}
+			}
+
+			sessions.push({
+				file,
+				title: header.title || file.replace(".jsonl", ""),
+				model: header.model,
+				provider: header.provider,
+				messageCount,
+				createdAt: header.createdAt || 0,
+				lastActivity,
+			});
+		} catch (err) {
+			log("Error reading session %s: %s", file, err);
+		}
+	}
+
+	// Sort by lastActivity descending
+	sessions.sort((a, b) => b.lastActivity - a.lastActivity);
+	return sessions;
+}
+
+/**
+ * Save messages to a session JSONL file.
+ * Format: First line is header, subsequent lines are JSON message objects.
+ */
+function saveSession(
+	zosmaDir: string,
+	sessionId: string,
+	title: string,
+	messages: unknown[],
+	model?: string,
+	provider?: string,
+): void {
+	const sDir = sessionsDir(zosmaDir);
+	ensureDir(sDir);
+
+	const filePath = join(sDir, `${sessionId}.jsonl`);
+	const header = {
+		type: "session",
+		version: 1,
+		title,
+		createdAt: Date.now(),
+		model,
+		provider,
+		messageCount: messages.length,
+	};
+
+	const lines = [JSON.stringify(header)];
+	for (const msg of messages) {
+		lines.push(JSON.stringify(msg));
+	}
+
+	writeFileSync(filePath, lines.join("\n") + "\n", "utf-8");
+	log("Saved session: %s (%d messages)", sessionId, messages.length);
+}
+
+/**
+ * Load messages from a session file.
+ * Returns the messages array (excluding the header).
+ */
+function loadSessionMessages(zosmaDir: string, sessionFile: string): unknown[] {
+	const filePath = join(sessionsDir(zosmaDir), sessionFile);
+	if (!existsSync(filePath)) {
+		throw new Error(`Session not found: ${sessionFile}`);
+	}
+
+	const content = readFileSync(filePath, "utf-8");
+	const lines = content.trim().split("\n");
+	if (lines.length === 0) return [];
+
+	const messages: unknown[] = [];
+	for (let i = 1; i < lines.length; i++) {
+		const line = lines[i].trim();
+		if (line) {
+			try {
+				messages.push(JSON.parse(line));
+			} catch {
+				log("Skipping invalid JSON in session line %d", i + 1);
+			}
+		}
+	}
+	return messages;
+}
+
+/**
+ * Delete a session file.
+ */
+function deleteSessionFile(zosmaDir: string, sessionFile: string): boolean {
+	const filePath = join(sessionsDir(zosmaDir), sessionFile);
+	if (!existsSync(filePath)) return false;
+	unlinkSync(filePath);
+	log("Deleted session: %s", sessionFile);
+	return true;
+}
+
+// ---------------------------------------------------------------------------
+// Settings persistence
+// ---------------------------------------------------------------------------
+
+function settingsFilePath(zosmaDir: string): string {
+	return join(zosmaAgentDir(zosmaDir), "settings.json");
+}
+
+function loadSettings(zosmaDir: string): Record<string, unknown> {
+	const fp = settingsFilePath(zosmaDir);
+	if (!existsSync(fp)) return {};
+	try {
+		return JSON.parse(readFileSync(fp, "utf-8"));
+	} catch {
+		return {};
+	}
+}
+
+function saveSettings(zosmaDir: string, settings: Record<string, unknown>): void {
+	const fp = settingsFilePath(zosmaDir);
+	ensureDir(zosmaAgentDir(zosmaDir));
+	writeFileSync(fp, JSON.stringify(settings, null, 2), "utf-8");
+	log("Settings saved");
 }
 
 // ---------------------------------------------------------------------------
@@ -185,8 +420,7 @@ async function main() {
 		});
 
 		// Resource loader — discovers extensions, skills, prompts from
-		// the zosma agent dir. This is how we'll support the pi extension
-		// ecosystem in Phase 4.
+		// the zosma agent dir.
 		resourceLoader = new DefaultResourceLoader({
 			cwd: process.cwd(),
 			agentDir,
@@ -194,7 +428,7 @@ async function main() {
 		});
 		await resourceLoader.reload();
 
-		// Session manager — in-memory (no persistence for now)
+		// Session manager — in-memory (persistence handled by sidecar commands)
 		sessionManager = SessionManager.inMemory();
 
 		// Create the agent session
@@ -307,7 +541,10 @@ async function main() {
 					if (session) {
 						session.abort();
 					}
-					send({ type: "done", id: cmd.id ?? activePromptId ?? "abort" });
+					send({
+						type: "done",
+						id: cmd.id ?? activePromptId ?? "abort",
+					});
 					activePromptId = null;
 					break;
 				}
@@ -318,10 +555,11 @@ async function main() {
 						send({ type: "error", id: cmd.id, message: "Not initialized" });
 						break;
 					}
-					// Find the model in the registry
 					const found = modelRegistry?.find(cmd.provider, cmd.model);
 					if (found) {
-						await session.setModel(found as Parameters<typeof session.setModel>[0]);
+						await session.setModel(
+							found as Parameters<typeof session.setModel>[0],
+						);
 						send({ type: "result", id: cmd.id, data: { success: true } });
 					} else {
 						send({
@@ -335,17 +573,13 @@ async function main() {
 
 				// ── save_auth ──────────────────────────────────────────────
 				case "save_auth": {
-					// Write auth.json directly (bypass pi-mono's file locking to avoid
-					// stale lock issues). Then reload the AuthStorage.
 					const agentDir = zosmaAgentDir(zosmaDir);
 					ensureDir(agentDir);
 					cleanStaleLocks(agentDir);
 
-					// Read existing auth if any, then merge
 					const authPath = join(agentDir, "auth.json");
 					let existing: Record<string, unknown> = {};
 					try {
-						const { readFileSync } = await import("node:fs");
 						if (existsSync(authPath)) {
 							existing = JSON.parse(readFileSync(authPath, "utf-8"));
 						}
@@ -354,8 +588,6 @@ async function main() {
 					}
 
 					existing[cmd.provider] = { type: "api_key", key: cmd.key };
-
-					const { writeFileSync } = await import("node:fs");
 					writeFileSync(authPath, JSON.stringify(existing, null, 2), "utf-8");
 					log("Saved API key for %s", cmd.provider);
 
@@ -365,10 +597,136 @@ async function main() {
 					break;
 				}
 
-				// ── reload (reinitialize with fresh extensions/auth) ──────
+				// ── reload ─────────────────────────────────────────────────
 				case "reload": {
 					await initAgent(zosmaDir);
 					send({ type: "result", id: cmd.id, data: { success: true } });
+					break;
+				}
+
+				// ── new_session ────────────────────────────────────────────
+				case "new_session": {
+					// Reset the in-memory session for a fresh start
+					if (session) {
+						session.abort();
+					}
+					const result = await createAgentSession({
+						authStorage: authStorage!,
+						modelRegistry: modelRegistry!,
+						sessionManager: SessionManager.inMemory(),
+						settingsManager: settingsManager!,
+						resourceLoader: resourceLoader!,
+					});
+					session = result.session;
+					sessionManager = result.sessionManager as ReturnType<
+						typeof SessionManager.inMemory
+					>;
+
+					// Re-subscribe to events
+					session.subscribe((event) => {
+						send({ type: "event", event });
+					});
+
+					send({ type: "result", id: cmd.id, data: { success: true } });
+					break;
+				}
+
+				// ── list_sessions ──────────────────────────────────────────
+				case "list_sessions": {
+					const sessions = listSessionFiles(zosmaDir);
+					send({
+						type: "result",
+						id: cmd.id,
+						data: { sessions },
+					});
+					break;
+				}
+
+				// ── save_session ───────────────────────────────────────────
+				case "save_session": {
+					saveSession(
+						zosmaDir,
+						cmd.id,
+						cmd.title || "Chat",
+						cmd.messages || [],
+						cmd.model,
+						cmd.provider,
+					);
+					send({ type: "done", id: cmd.id });
+					break;
+				}
+
+				// ── load_session ───────────────────────────────────────────
+				case "load_session": {
+					try {
+						const messages = loadSessionMessages(zosmaDir, cmd.sessionFile);
+						// Also read the header for metadata
+						const filePath = join(sessionsDir(zosmaDir), cmd.sessionFile);
+						const content = readFileSync(filePath, "utf-8");
+						const header = JSON.parse(content.trim().split("\n")[0]);
+						send({
+							type: "result",
+							id: cmd.id,
+							data: {
+								messages,
+								title: header.title || "",
+								model: header.model,
+								provider: header.provider,
+							},
+						});
+					} catch (err) {
+						send({
+							type: "error",
+							id: cmd.id,
+							message: err instanceof Error ? err.message : String(err),
+						});
+					}
+					break;
+				}
+
+				// ── delete_session ─────────────────────────────────────────
+				case "delete_session": {
+					const deleted = deleteSessionFile(zosmaDir, cmd.sessionFile);
+					send({
+						type: "result",
+						id: cmd.id,
+						data: { deleted },
+					});
+					break;
+				}
+
+				// ── get_settings ───────────────────────────────────────────
+				case "get_settings": {
+					try {
+						const settings = loadSettings(zosmaDir);
+						send({
+							type: "result",
+							id: cmd.id,
+							data: { settings },
+						});
+					} catch (err) {
+						send({
+							type: "error",
+							id: cmd.id,
+							message: err instanceof Error ? err.message : String(err),
+						});
+					}
+					break;
+				}
+
+				// ── save_settings ───────────────────────────────────────────
+				case "save_settings": {
+					try {
+						const { id: _sid, type: _t, ...rest } = cmd as Record<string, unknown>;
+						saveSettings(zosmaDir, rest as Record<string, unknown>);
+						send({ type: "result", id: cmd.id, data: { success: true } });
+					} catch (err) {
+						send({
+							type: "error",
+							id: cmd.id,
+							message: err instanceof Error ? err.message : String(err),
+						});
+					}
 					break;
 				}
 
@@ -376,7 +734,7 @@ async function main() {
 					send({
 						type: "error",
 						id: "unknown",
-						message: "Unknown command",
+						message: `Unknown command: ${(cmd as Command).type}`,
 					});
 			}
 		} catch (err) {
@@ -387,7 +745,6 @@ async function main() {
 				id: "unknown",
 				message,
 			});
-			// If a prompt was in flight, mark it done
 			if (activePromptId) {
 				send({ type: "done", id: activePromptId });
 				activePromptId = null;

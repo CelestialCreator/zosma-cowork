@@ -24,6 +24,54 @@
 	--radius: 0.5rem;
 	--font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 	--font-mono: "SF Mono", "Fira Code", "Fira Mono", Menlo, monospace;
+
+	/* ── Chat layout ── */
+	--chat-user-bg: 0 0% 100%;
+	--chat-user-fg: 240 10% 3.9%;
+	--chat-assistant-bg: 0 0% 100%;
+	--chat-assistant-fg: 240 10% 3.9%;
+	--chat-system-bg: 240 5% 96%;
+	--chat-system-fg: 240 4% 46%;
+	--chat-avatar-user-bg: 221 83% 53%;
+	--chat-avatar-user-fg: 0 0% 100%;
+	--chat-avatar-assistant-bg: 240 5% 96%;
+	--chat-avatar-assistant-fg: 240 10% 3.9%;
+
+	/* ── Status bar ── */
+	--status-bg: 240 5% 96%;
+	--status-divider: 240 6% 90%;
+	--status-active-fg: 221 83% 53%;
+
+	/* ── Tool execution blocks ── */
+	--tool-running-bg: 38 92% 50% / 0.12;
+	--tool-running-fg: 38 92% 50%;
+	--tool-running-border: 38 92% 50% / 0.25;
+	--tool-complete-bg: 142 71% 45% / 0.08;
+	--tool-complete-fg: 142 71% 45%;
+	--tool-complete-border: 142 71% 45% / 0.2;
+	--tool-error-bg: 0 72% 51% / 0.08;
+	--tool-error-fg: 0 72% 51%;
+	--tool-error-border: 0 72% 51% / 0.2;
+	--tool-timeline-line: 240 6% 90%;
+
+	/* ── Diff colors ── */
+	--diff-added-bg: 142 71% 45% / 0.08;
+	--diff-added-fg: 142 71% 45%;
+	--diff-removed-bg: 0 72% 51% / 0.08;
+	--diff-removed-fg: 0 72% 51%;
+	--diff-context-fg: 240 4% 46%;
+	--diff-hunk-fg: 221 83% 53%;
+
+	/* ── Subtle backgrounds ── */
+	--success-subtle: 142 71% 45% / 0.06;
+	--error-subtle: 0 72% 51% / 0.06;
+
+	/* ── Sidebar ── */
+	--sidebar-background: 240 5% 96%;
+	--sidebar-foreground: 240 10% 3.9%;
+	--sidebar-accent: 240 5% 90%;
+	--sidebar-accent-foreground: 240 6% 10%;
+	--sidebar-border: 240 6% 90%;
 }
 
 /* ── Dark mode ── */
@@ -47,6 +95,54 @@
 		--border: 240 4% 16%;
 		--input: 240 4% 16%;
 		--ring: 240 5% 65%;
+
+		/* ── Chat layout (dark) ── */
+		--chat-user-bg: 240 6% 6%;
+		--chat-user-fg: 0 0% 98%;
+		--chat-assistant-bg: 240 10% 3.9%;
+		--chat-assistant-fg: 0 0% 98%;
+		--chat-system-bg: 240 4% 16%;
+		--chat-system-fg: 240 5% 65%;
+		--chat-avatar-user-bg: 217 91% 60%;
+		--chat-avatar-user-fg: 0 0% 100%;
+		--chat-avatar-assistant-bg: 240 4% 16%;
+		--chat-avatar-assistant-fg: 0 0% 98%;
+
+		/* ── Status bar (dark) ── */
+		--status-bg: 240 6% 6%;
+		--status-divider: 240 4% 16%;
+		--status-active-fg: 217 91% 60%;
+
+		/* ── Tool execution blocks (dark) ── */
+		--tool-running-bg: 38 92% 50% / 0.15;
+		--tool-running-fg: 38 92% 60%;
+		--tool-running-border: 38 92% 50% / 0.3;
+		--tool-complete-bg: 142 71% 45% / 0.1;
+		--tool-complete-fg: 142 71% 55%;
+		--tool-complete-border: 142 71% 45% / 0.25;
+		--tool-error-bg: 0 62% 60% / 0.1;
+		--tool-error-fg: 0 62% 65%;
+		--tool-error-border: 0 62% 60% / 0.25;
+		--tool-timeline-line: 240 4% 16%;
+
+		/* ── Diff colors (dark) ── */
+		--diff-added-bg: 142 71% 45% / 0.1;
+		--diff-added-fg: 142 71% 60%;
+		--diff-removed-bg: 0 62% 60% / 0.1;
+		--diff-removed-fg: 0 62% 65%;
+		--diff-context-fg: 240 5% 55%;
+		--diff-hunk-fg: 217 91% 60%;
+
+		/* ── Subtle backgrounds (dark) ── */
+		--success-subtle: 142 71% 45% / 0.08;
+		--error-subtle: 0 62% 60% / 0.08;
+
+		/* ── Sidebar (dark) ── */
+		--sidebar-background: 240 10% 5.9%;
+		--sidebar-foreground: 0 0% 98%;
+		--sidebar-accent: 240 4% 16%;
+		--sidebar-accent-foreground: 0 0% 98%;
+		--sidebar-border: 240 4% 16%;
 	}
 }
 
@@ -76,6 +172,11 @@
 	--radius-xl: calc(var(--radius) + 4px);
 	--font-sans: var(--font-sans);
 	--font-mono: var(--font-mono);
+	--color-sidebar: hsl(var(--sidebar-background));
+	--color-sidebar-foreground: hsl(var(--sidebar-foreground));
+	--color-sidebar-accent: hsl(var(--sidebar-accent));
+	--color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+	--color-sidebar-border: hsl(var(--sidebar-border));
 }
 
 /* ── Base layout ── */
@@ -136,4 +237,33 @@ body {
 
 ::selection {
 	background: hsl(var(--primary) / 0.25);
+}
+
+/* ── Animations ── */
+@keyframes fade-in {
+	from { opacity: 0; transform: translateY(2px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+@keyframes subtle-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.85; }
+}
+@keyframes spin-slow {
+	to { transform: rotate(360deg); }
+}
+@keyframes pulse-dot {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.4; }
+}
+.animate-fade-in {
+	animation: fade-in 0.15s ease-out;
+}
+.animate-subtle-pulse {
+	animation: subtle-pulse 2s ease-in-out infinite;
+}
+.animate-spin-slow {
+	animation: spin-slow 1.5s linear infinite;
+}
+.animate-pulse-dot {
+	animation: pulse-dot 1.5s ease-in-out infinite;
 }
