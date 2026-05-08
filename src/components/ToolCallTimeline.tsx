@@ -1,78 +1,42 @@
 /**
- * ToolCallTimeline — Rich tool execution display inspired by pi's TUI.
+ * ToolCallTimeline — Flat inline tool execution display matching pi's TUI.
  *
- * Each tool call renders as a padded block with:
- *   - Colored left accent bar (amber=running, green=done, red=error)
- *   - Rich per-tool call summary (read path, bash command, edit diff, etc.)
- *   - Expandable result with diff highlighting for edit/write
- *   - Partial output streaming while running
- *   - Proper padding on all 4 sides
+ * Design:
+ *   - No borders, no rounded corners, no accordion
+ *   - Subtle background tint, thin left accent bar
+ *   - Clean text headers: "write ~/path (stats)" with status below
+ *   - Side-by-side diff for edit/write with line numbers
+ *   - Bash shows $ command then output
+ *   - Read shows file content directly
  */
 
-import { cn } from "@/lib/utils";
 import type { ToolCallInfo } from "@/types";
-import {
-	AlertCircle,
-	Check,
-	ChevronsUpDown,
-	FolderSearch,
-	GitCompare,
-	Loader2,
-	Terminal,
-	FileText,
-	Pencil,
-	FilePlus,
-	Search,
-	FolderOpen,
-	type LucideIcon,
-} from "lucide-react";
+import { Loader2, AlertCircle, Check } from "lucide-react";
 import { useState } from "react";
 
-// ─── Main timeline component ────────────────────────────────────────
+// ─── Main timeline ──────────────────────────────────────────────────
 
 interface ToolCallTimelineProps {
 	toolCalls: ToolCallInfo[];
-	defaultExpanded?: boolean;
-	isLatest?: boolean;
 }
 
-export function ToolCallTimeline({
-	toolCalls,
-	defaultExpanded = false,
-	isLatest,
-}: ToolCallTimelineProps) {
+export function ToolCallTimeline({ toolCalls }: ToolCallTimelineProps) {
 	if (toolCalls.length === 0) return null;
-
 	return (
-		<div className="my-2 flex flex-col gap-1 animate-fade-in">
-			{toolCalls.map((tc, idx) => (
-				<ToolCallBlock
-					key={tc.id}
-					toolCall={tc}
-					defaultExpanded={
-						defaultExpanded || (isLatest && idx === toolCalls.length - 1)
-					}
-				/>
+		<div className="flex flex-col gap-1 my-1.5">
+			{toolCalls.map((tc) => (
+				<ToolCallBlock key={tc.id} toolCall={tc} />
 			))}
 		</div>
 	);
 }
 
-// ─── Single tool call block ──────────────────────────────────────────
+// ─── Single tool block ──────────────────────────────────────────────
 
-interface ToolCallBlockProps {
-	toolCall: ToolCallInfo;
-	defaultExpanded?: boolean;
-}
-
-function ToolCallBlock({ toolCall, defaultExpanded }: ToolCallBlockProps) {
-	const [expanded, setExpanded] = useState(defaultExpanded ?? false);
-
+function ToolCallBlock({ toolCall }: { toolCall: ToolCallInfo }) {
 	const isRunning = toolCall.status === "running";
-	const isCompleted = toolCall.status === "completed";
 	const isError = toolCall.status === "error";
 
-	// Resolve border/bg colors based on status
 	const accentColor = isRunning
 		? "hsl(var(--tool-running-fg))"
 		: isError
@@ -85,335 +49,395 @@ function ToolCallBlock({ toolCall, defaultExpanded }: ToolCallBlockProps) {
 			? "hsl(var(--tool-error-bg))"
 			: "hsl(var(--tool-complete-bg))";
 
-	const borderColor = isRunning
-		? "hsl(var(--tool-running-border))"
-		: isError
-			? "hsl(var(--tool-error-border))"
-			: "hsl(var(--tool-complete-border))";
-
-	const { icon: ToolIcon, label, summary } = getToolCallDisplay(toolCall);
+	const { header, statusLine } = buildHeader(toolCall);
 
 	return (
 		<div
-			className={cn(
-				"rounded-md border overflow-hidden transition-colors duration-200",
-				isRunning && "animate-subtle-pulse",
-			)}
+			className="text-xs font-mono"
 			style={{
 				background: bgColor,
-				borderColor,
+				borderLeft: `2px solid ${accentColor}`,
 			}}
 		>
-			{/* Header row */}
-			<button
-				type="button"
-				onClick={() => setExpanded(!expanded)}
-				className="flex items-center gap-2 w-full text-left px-3 py-2 hover:opacity-90 transition-opacity"
-			>
-				{/* Status indicator */}
-				<span className="flex-shrink-0 flex items-center justify-center w-4 h-4">
-					{isRunning ? (
-						<Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: accentColor }} />
-					) : isCompleted ? (
-						<Check className="w-3.5 h-3.5" style={{ color: accentColor }} />
-					) : (
-						<AlertCircle className="w-3.5 h-3.5" style={{ color: accentColor }} />
-					)}
-				</span>
-
-				{/* Tool icon */}
-				<ToolIcon className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
-
-				{/* Tool label + summary */}
-				<span className="flex-1 min-w-0">
-					<span className="text-xs font-mono font-semibold" style={{ color: accentColor }}>
-						{label}
-					</span>
-					{summary && (
-						<span className="text-xs text-muted-foreground ml-1.5 truncate">{summary}</span>
-					)}
-				</span>
-
-				{/* Status badge for running */}
-				{isRunning && (
-					<span
-						className="text-[10px] px-1.5 py-0 rounded-sm font-medium flex-shrink-0"
-						style={{
-							background: "hsl(var(--tool-running-border))",
-							color: "hsl(var(--tool-running-fg))",
-						}}
-					>
-						running
-					</span>
+			{/* Header line */}
+			<div className="flex items-center gap-1.5 px-2 pt-1.5 pb-0.5">
+				{isRunning ? (
+					<Loader2 className="w-3 h-3 animate-spin flex-shrink-0" style={{ color: accentColor }} />
+				) : isError ? (
+					<AlertCircle className="w-3 h-3 flex-shrink-0" style={{ color: accentColor }} />
+				) : (
+					<Check className="w-3 h-3 flex-shrink-0" style={{ color: accentColor }} />
 				)}
+				<span className="opacity-90">{header}</span>
+			</div>
 
-				{/* Expand/collapse chevron */}
-				<ChevronsUpDown className="w-3 h-3 text-muted-foreground/40 flex-shrink-0" />
-			</button>
-
-			{/* Partial output while running */}
-			{isRunning && toolCall.partialOutput && (
-				<div className="px-3 pb-2">
-					<pre
-						className="text-[11px] font-mono leading-relaxed overflow-x-auto max-h-24 overflow-y-auto opacity-60"
-						style={{ color: "hsl(var(--foreground))" }}
-					>
-						{truncateText(toolCall.partialOutput, 500)}
-					</pre>
-				</div>
+			{/* Status sub-line */}
+			{statusLine && (
+				<div className="px-2 pb-1 opacity-60">{statusLine}</div>
 			)}
 
-			{/* Expanded detail */}
-			{expanded && (
-				<div className="px-3 pb-3 pt-1 border-t" style={{ borderColor }}>
-					{/* Arguments */}
-					{Object.keys(toolCall.args).length > 0 && (
-						<div className="mt-1.5">
-							<div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 font-medium">
-								Input
-							</div>
-							<pre
-								className="text-[11px] text-foreground overflow-x-auto font-mono leading-relaxed rounded p-2"
-								style={{ background: "hsl(var(--muted) / 0.5)" }}
-							>
-								{formatArgs(toolCall.args)}
-							</pre>
-						</div>
-					)}
-
-					{/* Result */}
-					{toolCall.result !== undefined && toolCall.result !== "" && (
-						<div className="mt-2">
-							<div
-								className={cn(
-									"text-[10px] uppercase tracking-wider mb-1 font-medium",
-									isError ? "text-destructive" : "text-muted-foreground",
-								)}
-							>
-								{isError ? "Error" : "Result"}
-							</div>
-							<ResultDisplay
-								result={toolCall.result}
-								toolName={toolCall.name}
-								details={toolCall.details}
-								isError={isError}
-							/>
-						</div>
-					)}
-				</div>
-			)}
+			{/* Content */}
+			<div className="px-2 pb-1.5">
+				<ToolContent toolCall={toolCall} />
+			</div>
 		</div>
 	);
 }
 
-// ─── Result display with diff awareness ─────────────────────────────
+// ─── Build header text per tool ─────────────────────────────────────
 
-interface ResultDisplayProps {
-	result: string;
-	toolName: string;
-	details?: Record<string, unknown>;
-	isError: boolean;
-}
-
-function ResultDisplay({ result, toolName, details: _details, isError }: ResultDisplayProps) {
-	// Check if this is a diff result (from edit tool)
-	if (!isError && (toolName === "edit" || toolName === "write") && hasDiffContent(result)) {
-		return <DiffDisplay diffText={result} />;
-	}
-
-	return (
-		<pre
-			className={cn(
-				"text-[11px] whitespace-pre-wrap overflow-x-auto max-h-48 overflow-y-auto font-mono leading-relaxed rounded p-2",
-			)}
-			style={{
-				background: isError ? "hsl(var(--error-subtle))" : "hsl(var(--success-subtle))",
-				color: isError ? "hsl(var(--destructive))" : "hsl(var(--foreground))",
-			}}
-		>
-			{truncateText(result, 3000)}
-		</pre>
-	);
-}
-
-// ─── Diff display component ─────────────────────────────────────────
-
-function DiffDisplay({ diffText }: { diffText: string }) {
-	const lines = diffText.split("\n");
-
-	return (
-		<div
-			className="rounded overflow-hidden text-[11px] font-mono leading-relaxed"
-			style={{ background: "hsl(var(--muted) / 0.3)" }}
-		>
-			{lines.map((line, i) => {
-				let lineStyle: React.CSSProperties = {
-					padding: "0 0.5rem",
-					minHeight: "1.4em",
-				};
-
-				if (line.startsWith("+++ ") || line.startsWith("--- ")) {
-					lineStyle = {
-						...lineStyle,
-						color: "hsl(var(--diff-hunk-fg))",
-						fontWeight: 600,
-					};
-				} else if (line.startsWith("@@")) {
-					lineStyle = {
-						...lineStyle,
-						color: "hsl(var(--diff-hunk-fg))",
-						background: "hsl(var(--diff-hunk-fg) / 0.06)",
-					};
-				} else if (line.startsWith("+")) {
-					lineStyle = {
-						...lineStyle,
-						color: "hsl(var(--diff-added-fg))",
-						background: "hsl(var(--diff-added-bg))",
-					};
-				} else if (line.startsWith("-")) {
-					lineStyle = {
-						...lineStyle,
-						color: "hsl(var(--diff-removed-fg))",
-						background: "hsl(var(--diff-removed-bg))",
-					};
-				} else {
-					lineStyle = {
-						...lineStyle,
-						color: "hsl(var(--diff-context-fg))",
-					};
-				}
-
-				return (
-					<div key={`${i}-${line.slice(0, 20)}`} style={lineStyle}>
-						{line || " "}
-					</div>
-				);
-			})}
-		</div>
-	);
-}
-
-// ─── Tool-specific call display ─────────────────────────────────────
-
-interface ToolCallDisplay {
-	icon: LucideIcon;
-	label: string;
-	summary: string;
-}
-
-function getToolCallDisplay(tc: ToolCallInfo): ToolCallDisplay {
+function buildHeader(tc: ToolCallInfo): { header: string; statusLine?: string } {
 	const args = tc.args;
 
 	switch (tc.name) {
-		case "read": {
-			const path = shortenPath(str(args.path) || str(args.file_path) || "");
-			const offset = num(args.offset);
-			const limit = num(args.limit);
-			let suffix = "";
-			if (offset || limit) {
-				const from = offset ?? 1;
-				const to = limit ? from + limit - 1 : undefined;
-				suffix = to ? `:${from}-${to}` : `:${from}`;
-			}
+		case "write": {
+			const path = str(args.path) || str(args.file_path) || "";
+			const content = str(args.content) || "";
+			const lines = lineCount(content);
+			const size = formatSize(new Blob([content]).size);
 			return {
-				icon: FileText,
-				label: "read",
-				summary: path + suffix,
+				header: `write ${shortenPath(path)} (${lines} lines · ${size})`,
+				statusLine: tc.status === "completed" ? "└ overwritten" : undefined,
 			};
 		}
 
 		case "edit": {
-			const path = shortenPath(str(args.path) || str(args.file_path) || "");
+			const path = str(args.path) || str(args.file_path) || "";
 			const edits = Array.isArray(args.edits) ? args.edits : [];
 			const lineCount = edits.reduce(
-				(sum: number, e: Record<string, unknown>) =>
-					sum + lineCountStr(str(e.newText) || ""),
+				(sum: number, e: Record<string, unknown>) => sum + countLines(str(e.newText) || ""),
 				0,
 			);
+			const { added, removed } = diffStats(tc.result || "");
 			return {
-				icon: Pencil,
-				label: "edit",
-				summary: `${path} (${lineCount} line${lineCount !== 1 ? "s" : ""})`,
+				header: `edit ${shortenPath(path)} (${lineCount} lines)`,
+				statusLine:
+					tc.status === "completed"
+						? `└ diff +${added} -${removed} split`
+						: undefined,
 			};
 		}
 
-		case "write": {
-			const path = shortenPath(str(args.path) || str(args.file_path) || "");
-			const content = str(args.content) || "";
-			const lc = lineCountStr(content);
-			const size = formatSize(new Blob([content]).size);
-			return {
-				icon: FilePlus,
-				label: "write",
-				summary: `${path} (${lc} lines · ${size})`,
-			};
+		case "read": {
+			const path = str(args.path) || str(args.file_path) || "";
+			const offset = num(args.offset);
+			const limit = num(args.limit);
+			let range = "";
+			if (offset || limit) {
+				const from = offset ?? 1;
+				const to = limit ? from + limit - 1 : undefined;
+				range = `:${from}${to ? `-${to}` : ""}`;
+			}
+			return { header: `read ${shortenPath(path)}${range}` };
 		}
 
 		case "bash": {
 			const cmd = str(args.command) || "";
-			const display = cmd.length > 60 ? `${cmd.slice(0, 57)}...` : cmd;
-			return {
-				icon: Terminal,
-				label: "bash",
-				summary: `$ ${display}`,
-			};
+			const display = cmd.length > 80 ? `${cmd.slice(0, 77)}...` : cmd;
+			return { header: `bash $ ${display}` };
 		}
 
 		case "grep": {
 			const pattern = str(args.pattern) || "";
 			const scope = shortenPath(str(args.path) || ".");
-			const glob = str(args.glob);
-			return {
-				icon: Search,
-				label: "grep",
-				summary: `/${pattern}/ in ${scope}${glob ? ` (${glob})` : ""}`,
-			};
+			return { header: `grep /${pattern}/ in ${scope}` };
 		}
 
 		case "find": {
 			const pattern = str(args.pattern) || "";
 			const scope = shortenPath(str(args.path) || ".");
-			return {
-				icon: FolderSearch,
-				label: "find",
-				summary: `${pattern} in ${scope}`,
-			};
+			return { header: `find ${pattern} in ${scope}` };
 		}
 
 		case "ls": {
 			const path = shortenPath(str(args.path) || ".");
-			return {
-				icon: FolderOpen,
-				label: "ls",
-				summary: path,
-			};
+			return { header: `ls ${path}` };
 		}
 
 		case "web_search":
-		case "code_search":
-		case "fetch_content":
-		case "web_fetch": {
-			return {
-				icon: Search,
-				label: tc.name,
-				summary: str(args.query) || str(args.url) || (Array.isArray(args.queries) ? (args.queries as string[]).join(", ") : "") || "",
-			};
+		case "code_search": {
+			const q = str(args.query) || (Array.isArray(args.queries) ? (args.queries as string[]).join(", ") : "");
+			return { header: `${tc.name} ${q.slice(0, 80)}` };
+		}
+
+		case "fetch_content": {
+			const url = str(args.url) || "";
+			return { header: `fetch ${url.slice(0, 80)}` };
 		}
 
 		default: {
-			// Generic display for unknown tools
-			return {
-				icon: GitCompare,
-				label: tc.name,
-				summary: Object.keys(args).length > 0
-					? Object.keys(args).slice(0, 3).join(", ")
-					: "",
-			};
+			return { header: `${tc.name}` };
 		}
 	}
 }
 
-// ─── ToolCallSummary (for message header) ────────────────────────────
+// ─── Render tool-specific content ───────────────────────────────────
+
+function ToolContent({ toolCall }: { toolCall: ToolCallInfo }) {
+	const isRunning = toolCall.status === "running";
+
+	// Running: show partial output (already truncated)
+	if (isRunning && toolCall.partialOutput) {
+		return (
+			<TruncatedOutput text={toolCall.partialOutput} limit={800} />
+		);
+	}
+
+	// No result yet
+	if (toolCall.result === undefined || toolCall.result === "") {
+		return null;
+	}
+
+	// Edit/write with diff — always show (diffs are structured)
+	if ((toolCall.name === "edit" || toolCall.name === "write") && isDiff(toolCall.result)) {
+		return <SplitDiff diffText={toolCall.result} />;
+	}
+
+	// Read — NEVER show content inline. Just header.
+	if (toolCall.name === "read") {
+		return null;
+	}
+
+	// Bash error
+	if (toolCall.name === "bash" && toolCall.status === "error") {
+		return (
+			<pre className="text-[11px] whitespace-pre-wrap" style={{ color: "hsl(var(--destructive))" }}>
+				{truncate(toolCall.result, 3000)}
+			</pre>
+		);
+	}
+
+	// Default — truncated with expand
+	return <TruncatedOutput text={toolCall.result} limit={2000} />;
+}
+
+// ─── Truncated output with expand ───────────────────────────────────
+
+function TruncatedOutput({ text, limit }: { text: string; limit: number }) {
+	const [expanded, setExpanded] = useState(false);
+	const needsTruncation = text.length > limit;
+
+	if (!needsTruncation || expanded) {
+		return (
+			<pre className="text-[11px] whitespace-pre-wrap opacity-80">
+				{text}
+			</pre>
+		);
+	}
+
+	const lines = text.split("\n");
+	const truncated = lines.slice(0, 20).join("\n");
+	const hiddenLines = lines.length - 20;
+
+	return (
+		<div>
+			<pre className="text-[11px] whitespace-pre-wrap opacity-80">
+				{truncated}
+			</pre>
+			<button
+				type="button"
+				onClick={() => setExpanded(true)}
+				className="text-[10px] opacity-50 hover:opacity-90 transition-opacity mt-0.5"
+			>
+				{hiddenLines > 0
+					? `··· ${hiddenLines} more line${hiddenLines !== 1 ? "s" : ""} · Click to expand`
+					: "··· Click to expand"}
+			</button>
+		</div>
+	);
+}
+
+// ─── Side-by-side diff viewer ───────────────────────────────────────
+
+interface DiffLine {
+	oldNum: number | null;
+	newNum: number | null;
+	type: "context" | "add" | "remove" | "header" | "hunk" | "ellipsis";
+	text: string;
+}
+
+function parseUnifiedDiff(diffText: string): { hunks: DiffLine[][]; isNewFile: boolean } {
+	const lines = diffText.split("\n");
+	const hunks: DiffLine[][] = [];
+	let currentHunk: DiffLine[] = [];
+	let oldLine = 0;
+	let newLine = 0;
+	let isNewFile = false;
+
+	for (const line of lines) {
+		if (line.startsWith("+++ ") || line.startsWith("--- ")) {
+			if (line.startsWith("--- ") && line.includes("/dev/null")) {
+				isNewFile = true;
+			}
+			if (currentHunk.length > 0) {
+				hunks.push(currentHunk);
+				currentHunk = [];
+			}
+			currentHunk.push({ oldNum: null, newNum: null, type: "header", text: line });
+			continue;
+		}
+
+		if (line.startsWith("@@")) {
+			if (currentHunk.length > 0 && currentHunk.some((l) => l.type !== "header")) {
+				hunks.push(currentHunk);
+				currentHunk = [];
+			}
+			const match = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+			oldLine = match ? Number.parseInt(match[1], 10) : 0;
+			newLine = match ? Number.parseInt(match[2], 10) : 0;
+			currentHunk.push({ oldNum: null, newNum: null, type: "hunk", text: line });
+			continue;
+		}
+
+		if (line.startsWith("+")) {
+			currentHunk.push({ oldNum: null, newNum: newLine++, type: "add", text: line.slice(1) });
+		} else if (line.startsWith("-")) {
+			currentHunk.push({ oldNum: oldLine++, newNum: null, type: "remove", text: line.slice(1) });
+		} else if (line.startsWith(" ")) {
+			currentHunk.push({
+				oldNum: oldLine++,
+				newNum: newLine++,
+				type: "context",
+				text: line.slice(1),
+			});
+		} else if (line === "") {
+			currentHunk.push({ oldNum: oldLine++, newNum: newLine++, type: "context", text: "" });
+		} else {
+			currentHunk.push({ oldNum: null, newNum: null, type: "context", text: line });
+		}
+	}
+
+	if (currentHunk.length > 0) hunks.push(currentHunk);
+	return { hunks: hunks.map(collapseContext), isNewFile };
+}
+
+/** Collapse runs of 4+ context lines into ellipsis */
+function collapseContext(hunk: DiffLine[]): DiffLine[] {
+	const result: DiffLine[] = [];
+	let contextRun: DiffLine[] = [];
+
+	for (const line of hunk) {
+		if (line.type === "context") {
+			contextRun.push(line);
+		} else {
+			if (contextRun.length >= 4) {
+				result.push(contextRun[0]);
+				result.push({ oldNum: null, newNum: null, type: "ellipsis", text: `··· ${contextRun.length - 2} lines ···` });
+				result.push(contextRun[contextRun.length - 1]);
+			} else {
+				result.push(...contextRun);
+			}
+			contextRun = [];
+			result.push(line);
+		}
+	}
+
+	if (contextRun.length >= 4) {
+		result.push(contextRun[0]);
+		result.push({ oldNum: null, newNum: null, type: "ellipsis", text: `··· ${contextRun.length - 2} lines ···` });
+		result.push(contextRun[contextRun.length - 1]);
+	} else {
+		result.push(...contextRun);
+	}
+
+	return result;
+}
+
+function SplitDiff({ diffText }: { diffText: string }) {
+	const { hunks, isNewFile } = parseUnifiedDiff(diffText);
+	if (hunks.length === 0) return null;
+
+	return (
+		<div className="mt-1 overflow-x-auto">
+			{hunks.map((hunk) => (
+				<div key={hunk[0]?.text || hunk[0]?.type} className="min-w-[500px]">
+					{/* Hunk header */}
+					{hunk[0]?.type === "hunk" && (
+						<div className="text-[10px] opacity-50 py-0.5">{hunk[0].text}</div>
+					)}
+					{/* Side-by-side rows */}
+					<div className="grid" style={{ gridTemplateColumns: isNewFile ? "1fr" : "1fr 1fr" }}>
+						{/* Column headers */}
+						{!isNewFile && (
+							<>
+								<div className="text-[10px] opacity-40 px-1 border-b border-border/30">old</div>
+								<div className="text-[10px] opacity-40 px-1 border-b border-border/30">new</div>
+							</>
+						)}
+						{isNewFile && (
+							<div className="text-[10px] opacity-40 px-1 border-b border-border/30">new file</div>
+						)}
+						{/* Lines */}
+						{hunk
+							.filter((l) => l.type !== "header" && l.type !== "hunk")
+							.map((line) => (
+								<DiffRow key={`${line.oldNum ?? 'n'}-${line.newNum ?? 'n'}-${line.text.slice(0, 30)}`} line={line} isNewFile={isNewFile} />
+							))}
+					</div>
+				</div>
+			))}
+		</div>
+	);
+}
+
+function DiffRow({ line, isNewFile }: { line: DiffLine; isNewFile: boolean }) {
+	const removeBg = "hsl(var(--diff-removed-bg))";
+	const removeFg = "hsl(var(--diff-removed-fg))";
+	const addBg = "hsl(var(--diff-added-bg))";
+	const addFg = "hsl(var(--diff-added-fg))";
+	const contextFg = "hsl(var(--diff-context-fg))";
+
+	if (line.type === "ellipsis") {
+		return (
+			<>
+				{!isNewFile && <div className="px-1 py-0.5 opacity-30 text-center">{line.text}</div>}
+				<div className={`px-1 py-0.5 opacity-30 text-center ${isNewFile ? "col-span-2" : ""}`}>{line.text}</div>
+			</>
+		);
+	}
+
+	if (line.type === "remove") {
+		return (
+			<>
+				<div className="px-1 flex gap-1" style={{ background: removeBg, color: removeFg }}>
+					<span className="opacity-40 w-6 text-right flex-shrink-0">{line.oldNum}</span>
+					<span className="truncate">{line.text || " "}</span>
+				</div>
+				{!isNewFile && <div className="px-1" style={{ background: removeBg }} />}
+			</>
+		);
+	}
+
+	if (line.type === "add") {
+		return (
+			<>
+				{!isNewFile && <div className="px-1" style={{ background: addBg }} />}
+				<div className={`px-1 flex gap-1 ${isNewFile ? "col-span-2" : ""}`} style={{ background: addBg, color: addFg }}>
+					<span className="opacity-40 w-6 text-right flex-shrink-0">{line.newNum}</span>
+					<span className="truncate">{line.text || " "}</span>
+				</div>
+			</>
+		);
+	}
+
+	// Context
+	return (
+		<>
+			{!isNewFile && (
+				<div className="px-1 flex gap-1" style={{ color: contextFg }}>
+					<span className="opacity-40 w-6 text-right flex-shrink-0">{line.oldNum}</span>
+					<span className="truncate">{line.text || " "}</span>
+				</div>
+			)}
+			<div className={`px-1 flex gap-1 ${isNewFile ? "col-span-2" : ""}`} style={{ color: contextFg }}>
+				<span className="opacity-40 w-6 text-right flex-shrink-0">{line.newNum}</span>
+				<span className="truncate">{line.text || " "}</span>
+			</div>
+		</>
+	);
+}
+
+// ─── Compact summary (for message header) ───────────────────────────
 
 export function ToolCallSummary({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
 	const running = toolCalls.filter((tc) => tc.status === "running").length;
@@ -459,31 +483,13 @@ function shortenPath(path: string): string {
 		.replace(/^C:\\Users\\[^/\\]+\\/, "~/");
 }
 
-function lineCountStr(text: string): number {
+function lineCount(text: string): number {
 	if (!text) return 0;
 	return text.split("\n").length;
 }
 
-function formatArgs(args: Record<string, unknown>): string {
-	// For display, simplify common patterns
-	const display: Record<string, unknown> = {};
-	for (const [k, v] of Object.entries(args)) {
-		if (typeof v === "string" && v.length > 200) {
-			display[k] = `${v.slice(0, 200)}... (${v.length} chars)`;
-		} else {
-			display[k] = v;
-		}
-	}
-	try {
-		return JSON.stringify(display, null, 2);
-	} catch {
-		return String(args);
-	}
-}
-
-function truncateText(text: string, maxLen: number): string {
-	if (text.length <= maxLen) return text;
-	return `${text.slice(0, maxLen)}\n... (truncated)`;
+function countLines(text: string): number {
+	return lineCount(text);
 }
 
 function formatSize(bytes: number): string {
@@ -492,8 +498,18 @@ function formatSize(bytes: number): string {
 	return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function hasDiffContent(text: string): boolean {
-	// Check if result looks like a unified diff
+function diffStats(diffText: string): { added: number; removed: number } {
+	const lines = diffText.split("\n");
+	let added = 0;
+	let removed = 0;
+	for (const line of lines) {
+		if (line.startsWith("+") && !line.startsWith("+++")) added++;
+		if (line.startsWith("-") && !line.startsWith("---")) removed++;
+	}
+	return { added, removed };
+}
+
+function isDiff(text: string): boolean {
 	return (
 		text.includes("\n+") ||
 		text.includes("\n-") ||
@@ -501,4 +517,9 @@ function hasDiffContent(text: string): boolean {
 		text.includes("+++ ") ||
 		text.includes("--- ")
 	);
+}
+
+function truncate(text: string, max: number): string {
+	if (text.length <= max) return text;
+	return `${text.slice(0, max)}\n... (${text.length - max} more chars)`;
 }

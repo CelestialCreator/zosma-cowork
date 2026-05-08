@@ -7,11 +7,9 @@ import { ToolCallSummary, ToolCallTimeline } from "./ToolCallTimeline";
 
 interface ChatMessageProps {
 	message: ChatMessageType;
-	/** Whether this is the latest message in the chat — used to default-expand tool calls */
-	isLatest?: boolean;
 }
 
-export function ChatMessageItem({ message, isLatest = false }: ChatMessageProps) {
+export function ChatMessageItem({ message }: ChatMessageProps) {
 	const [copied, setCopied] = useState(false);
 	const isUser = message.role === "user";
 	const isSystem = message.role === "system";
@@ -117,13 +115,9 @@ export function ChatMessageItem({ message, isLatest = false }: ChatMessageProps)
 					/>
 				)}
 
-				{/* Tool calls — compact timeline */}
+				{/* Tool calls — flat inline timeline */}
 				{!isUser && message.toolCalls && message.toolCalls.length > 0 && (
-					<ToolCallTimeline
-						toolCalls={message.toolCalls}
-						isLatest={isLatest}
-						defaultExpanded={isLatest}
-					/>
+					<ToolCallTimeline toolCalls={message.toolCalls} />
 				)}
 
 				{/* Content */}
@@ -133,8 +127,11 @@ export function ChatMessageItem({ message, isLatest = false }: ChatMessageProps)
 						style={{ color: isUser ? "hsl(var(--chat-user-fg))" : "hsl(var(--chat-assistant-fg))" }}
 					>
 						<ReactMarkdown remarkPlugins={[remarkGfm]}>
-							{message.content || (message.isStreaming ? "▋" : "")}
+							{message.content || ""}
 						</ReactMarkdown>
+						{message.isStreaming && (
+							<span className="inline-block w-2 h-4 ml-0.5 align-middle animate-pulse" style={{ background: "hsl(var(--primary))" }} />
+						)}
 					</div>
 				)}
 

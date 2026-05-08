@@ -49,18 +49,18 @@ export function ChatView({
 		isUserScrolledUp.current = scrollHeight - scrollTop - clientHeight > 100;
 	}, []);
 
+	// Build a stable key from tool call state so scroll fires on tool changes too
+	const toolCallsKey = streamingMessage?.toolCalls
+		?.map((tc) => `${tc.id}:${tc.status}:${tc.partialOutput?.length ?? 0}:${tc.result?.length ?? 0}`)
+		.join("|") ?? "";
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on any content change including tools
 	useEffect(() => {
-		// Re-run when messages change or streaming content updates
-		const _ml = messages.length;
-		const _sc = streamingMessage?.content.length;
-		const _st = streamingMessage?.thinking?.length;
-		void _ml;
-		void _sc;
-		void _st;
-		if (!isUserScrolledUp.current) {
-			messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+		if (!isUserScrolledUp.current && messagesEndRef.current) {
+			// Use instant scroll for streaming to avoid jitter from queued smooth animations
+			messagesEndRef.current.scrollIntoView({ behavior: "auto" });
 		}
-	}, [messages.length, streamingMessage?.content.length, streamingMessage?.thinking?.length]);
+	}, [messages.length, streamingMessage?.content.length, streamingMessage?.thinking?.length, toolCallsKey]);
 
 	const allMessages = streamingMessage ? [...messages, streamingMessage] : messages;
 	const isEmpty = messages.length === 0 && !streamingMessage;
@@ -90,11 +90,10 @@ export function ChatView({
 					</div>
 				) : (
 					<div className="pb-4">
-						{allMessages.map((msg, idx) => (
+						{allMessages.map((msg) => (
 							<ChatMessageItem
 								key={msg.id}
 								message={msg}
-								isLatest={idx === allMessages.length - 1}
 							/>
 						))}
 						<div ref={messagesEndRef} />
