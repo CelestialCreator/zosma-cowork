@@ -87,6 +87,7 @@ function App() {
 	}
 
 	// ── When stream completes, merge into loaded messages and save to disk ──
+	// biome-ignore lint/correctness/useExhaustiveDependencies: Only trigger when stream finishes, not on every dep change
 	useEffect(() => {
 		if (!streamState.isRunning && streamState.messages.length > 0) {
 			const sid = activeSessionFile;
@@ -131,7 +132,6 @@ function App() {
 				];
 			});
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [streamState.isRunning]);
 
 	// ── Send a new prompt ──

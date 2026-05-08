@@ -300,10 +300,7 @@ async fn save_session(
 }
 
 #[tauri::command]
-async fn load_session(
-    session_file: String,
-    s: State<'_, AppState>,
-) -> Result<Value, String> {
+async fn load_session(session_file: String, s: State<'_, AppState>) -> Result<Value, String> {
     scmd_r(
         &s,
         &serde_json::json!({"type":"load_session","id":"ld","sessionFile": session_file}),
@@ -313,10 +310,7 @@ async fn load_session(
 }
 
 #[tauri::command]
-async fn delete_session(
-    session_file: String,
-    s: State<'_, AppState>,
-) -> Result<Value, String> {
+async fn delete_session(session_file: String, s: State<'_, AppState>) -> Result<Value, String> {
     scmd_r(
         &s,
         &serde_json::json!({"type":"delete_session","id":"dl","sessionFile": session_file}),
@@ -343,14 +337,15 @@ async fn get_settings(s: State<'_, AppState>) -> Result<Value, String> {
         std::time::Duration::from_secs(10),
     )
     .await
-    .map(|r| r.get("settings").cloned().unwrap_or(Value::Object(Default::default())))
+    .map(|r| {
+        r.get("settings")
+            .cloned()
+            .unwrap_or(Value::Object(Default::default()))
+    })
 }
 
 #[tauri::command]
-async fn save_settings(
-    settings: Value,
-    s: State<'_, AppState>,
-) -> Result<Value, String> {
+async fn save_settings(settings: Value, s: State<'_, AppState>) -> Result<Value, String> {
     let mut payload = serde_json::json!({"type":"save_settings","id":"ss"});
     if let Some(obj) = settings.as_object() {
         for (k, v) in obj {

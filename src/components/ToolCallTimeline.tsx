@@ -284,7 +284,7 @@ function DiffDisplay({ diffText }: { diffText: string }) {
 				}
 
 				return (
-					<div key={i} style={lineStyle}>
+					<div key={`${i}-${line.slice(0, 20)}`} style={lineStyle}>
 						{line || " "}
 					</div>
 				);

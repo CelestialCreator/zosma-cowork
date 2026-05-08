@@ -107,6 +107,11 @@ interface NewSessionCommand {
 	id: string;
 }
 
+interface ListSessionsCommand {
+	type: "list_sessions";
+	id: string;
+}
+
 interface GetSettingsCommand {
 	type: "get_settings";
 	id: string;
@@ -132,6 +137,7 @@ type Command =
 	| LoadSessionCommand
 	| DeleteSessionCommand
 	| NewSessionCommand
+	| ListSessionsCommand
 	| GetSettingsCommand
 	| SaveSettingsCommand;
 
@@ -303,7 +309,7 @@ function saveSession(
 		lines.push(JSON.stringify(msg));
 	}
 
-	writeFileSync(filePath, lines.join("\n") + "\n", "utf-8");
+	writeFileSync(filePath, `${lines.join("\n")}\n`, "utf-8");
 	log("Saved session: %s (%d messages)", sessionId, messages.length);
 }
 
@@ -610,17 +616,20 @@ async function main() {
 					if (session) {
 						session.abort();
 					}
+					if (!authStorage || !modelRegistry || !settingsManager || !resourceLoader) {
+						send({ type: "error", id: cmd.id, error: "Agent not initialized" });
+						break;
+					}
+					const newSessionManager = SessionManager.inMemory();
 					const result = await createAgentSession({
-						authStorage: authStorage!,
-						modelRegistry: modelRegistry!,
-						sessionManager: SessionManager.inMemory(),
-						settingsManager: settingsManager!,
-						resourceLoader: resourceLoader!,
+						authStorage,
+						modelRegistry,
+						sessionManager: newSessionManager,
+						settingsManager,
+						resourceLoader,
 					});
 					session = result.session;
-					sessionManager = result.sessionManager as ReturnType<
-						typeof SessionManager.inMemory
-					>;
+					sessionManager = newSessionManager;
 
 					// Re-subscribe to events
 					session.subscribe((event) => {
