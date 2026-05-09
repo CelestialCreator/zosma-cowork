@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
 
 import { Clock, MessageSquare, Plus, Settings, Trash2 } from "lucide-react";
 
@@ -174,6 +175,14 @@ function SessionsPanel({
 // ─── Settings Panel ─────────────────────────────────────────────────
 
 function SettingsPanel({ onShowKeyEntry }: { onShowKeyEntry?: () => void }) {
+	const [appVersion, setAppVersion] = useState<string | null>(null);
+
+	useEffect(() => {
+		import("@tauri-apps/api/app")
+			.then(({ getVersion }) => getVersion().then(setAppVersion))
+			.catch(() => {});
+	}, []);
+
 	return (
 		<>
 			<div className="flex items-center px-3 py-2">
@@ -197,7 +206,7 @@ function SettingsPanel({ onShowKeyEntry }: { onShowKeyEntry?: () => void }) {
 					<div>
 						<span className="text-xs text-sidebar-foreground/50 mb-1.5 block">About</span>
 						<div className="text-xs text-sidebar-foreground/70">
-							Zosma Cowork v0.3.0
+							Zosma Cowork {appVersion ? `v${appVersion}` : "..."}
 						</div>
 					</div>
 				</div>
