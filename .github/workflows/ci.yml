@@ -80,9 +80,12 @@ jobs:
         run: |
           cd agent-sidecar
           npm ci
-          npm run build
+          npm run bundle
+          # Patch import_meta.url for CJS compatibility
+          sed -i 's/var import_meta\([0-9]*\) = {};/var import_meta\1 = { url: require("url").pathToFileURL(__filename).href };/g' dist/bundle.cjs
+          # Copy bundle into src-tauri/ for Tauri resource bundling
           mkdir -p "$GITHUB_WORKSPACE/src-tauri/agent-sidecar"
-          cp -r dist/* "$GITHUB_WORKSPACE/src-tauri/agent-sidecar/"
+          cp dist/bundle.cjs "$GITHUB_WORKSPACE/src-tauri/agent-sidecar/index.cjs"
 
       - name: Install frontend dependencies
         run: npm ci

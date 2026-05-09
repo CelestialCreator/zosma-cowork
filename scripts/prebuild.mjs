@@ -1,24 +1,36 @@
 // Cross-platform prebuild script for Tauri beforeBuildCommand
-// Builds the agent-sidecar and copies dist files into src-tauri/agent-sidecar/
-// so Tauri's bundle.resources glob can find them at compile time.
+// Bundles the agent-sidecar into a single self-contained CJS file
+// with all dependencies inlined, so no node_modules/ needed at runtime.
 
 import { execSync } from "node:child_process";
-import { cpSync, mkdirSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const sidecarDir = join(root, "agent-sidecar");
-const targetDir = join(root, "src-tauri", "agent-sidecar");
 
-console.log("[prebuild] Building agent-sidecar...");
-execSync("npm ci && npm run build", {
+console.log("[prebuild] Building agent-sidecar bundle...");
+execSync("npm ci && npm run bundle", {
 	cwd: sidecarDir,
 	shell: true,
 	stdio: "inherit",
 });
 
-console.log("[prebuild] Copying dist to src-tauri/agent-sidecar/...");
-mkdirSync(targetDir, { recursive: true });
-cpSync(join(sidecarDir, "dist"), targetDir, { recursive: true });
+// Patch import_meta.url for CJS compatibility
+// esbuild outputs var import_meta = {}; but needs import_meta.url for CJS
+console.log("[prebuild] Patching import_meta.url...");
+const bundlePath = join(sidecarDir, "dist", "bundle.cjs");
+let code = readFileSync(bundlePath, "utf-8");
+code = code.replace(
+	/var (import_meta\d*) = \{\};/g,
+	'var $1 = { url: require("url").pathToFileURL(__filename).href };',
+);
+writeFileSync(bundlePath, code, "utf-8");
 
-console.log("[prebuild] Done.");
+// Copy single bundled file into src-tauri/ for Tauri resource bundling
+const targetPath = join(root, "src-tauri", "agent-sidecar", "index.cjs");
+console.log("[prebuild] Copying bundle to %s...", targetPath);
+mkdirSync(join(root, "src-tauri", "agent-sidecar"), { recursive: true });
+cpSync(bundlePath, targetPath);
+
+console.log("[prebuild] Done (%.1f MB)", code.length / 1024 / 1024);
