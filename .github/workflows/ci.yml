@@ -75,6 +75,15 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Build agent-sidecar
+        shell: bash
+        run: |
+          cd agent-sidecar
+          npm ci
+          npm run build
+          mkdir -p "$GITHUB_WORKSPACE/src-tauri/agent-sidecar"
+          cp -r dist/* "$GITHUB_WORKSPACE/src-tauri/agent-sidecar/"
+
       - name: Install frontend dependencies
         run: npm ci
 

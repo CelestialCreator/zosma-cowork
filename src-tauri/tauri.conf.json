@@ -7,7 +7,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "npm run dev:frontend",
-    "beforeBuildCommand": "npm run build:frontend"
+    "beforeBuildCommand": "(cd agent-sidecar && npm ci && npm run build && mkdir -p ../src-tauri/agent-sidecar && cp dist/* ../src-tauri/agent-sidecar/) && npm run build:frontend"
   },
   "app": {
     "windows": [
@@ -36,7 +36,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": ["sidecar/sidecar.mjs"],
+    "resources": ["agent-sidecar/*"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -77,6 +77,16 @@ jobs:
             console.log('Cargo.toml updated');
           "
 
+      - name: Build agent-sidecar
+        shell: bash
+        run: |
+          cd agent-sidecar
+          npm ci
+          npm run build
+          # Copy into src-tauri/ for bundling (Tauri resources must be relative to src-tauri)
+          mkdir -p "$GITHUB_WORKSPACE/src-tauri/agent-sidecar"
+          cp -r dist/* "$GITHUB_WORKSPACE/src-tauri/agent-sidecar/"
+
       - name: Install frontend dependencies
         run: npm ci
 

@@ -34,17 +34,24 @@ struct AppState {
     pending_requests: Arc<Mutex<HashMap<String, PendingRequest>>>,
 }
 
-fn find_sidecar_path() -> PathBuf {
-    let d = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+fn find_sidecar_path(app: &tauri::AppHandle) -> PathBuf {
+    // In dev mode, use the source directory
+    let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
-        .join("agent-sidecar");
-    let dev = d.join("src").join("index.ts");
+        .join("agent-sidecar")
+        .join("src")
+        .join("index.ts");
     if dev.exists() {
-        dev
-    } else {
-        d.join("dist").join("index.js")
+        return dev;
     }
+    // In production, bundled resources are extracted to the resource dir
+    // The sidecar is bundled at agent-sidecar/ (copy of dist/) under src-tauri/
+    app.path()
+        .resource_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join("agent-sidecar")
+        .join("index.js")
 }
 
 fn find_node() -> String {
@@ -52,6 +59,7 @@ fn find_node() -> String {
 }
 
 async fn spawn_sidecar(
+    app: tauri::AppHandle,
     zm: &str,
 ) -> Result<
     (
@@ -61,7 +69,7 @@ async fn spawn_sidecar(
     ),
     String,
 > {
-    let p = find_sidecar_path();
+    let p = find_sidecar_path(&app);
     let n = find_node();
     log::info!("Sidecar: {} {}", n, p.display());
     let mut c = Command::new(&n)
@@ -406,7 +414,7 @@ pub fn run() {
             let rd = Arc::clone(&st.sidecar.ready);
             app.manage(st);
             tauri::async_runtime::spawn(async move {
-                match spawn_sidecar(&zd).await {
+                match spawn_sidecar(h.clone(), &zd).await {
                     Ok((c, o, i)) => {
                         let s: State<AppState> = h.state();
                         *s.sidecar.child.lock().await = Some(c);
