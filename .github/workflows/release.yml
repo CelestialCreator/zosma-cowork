@@ -83,8 +83,13 @@ jobs:
           cd agent-sidecar
           npm ci
           npm run bundle
-          # Patch import_meta.url for CJS compatibility
-          sed -i 's/var import_meta\([0-9]*\) = {};/var import_meta\1 = { url: require("url").pathToFileURL(__filename).href };/g' dist/bundle.cjs
+          # Patch import_meta.url for CJS compatibility (cross-platform node, not sed)
+          node -e "
+            const fs = require('fs');
+            let code = fs.readFileSync('dist/bundle.cjs', 'utf-8');
+            code = code.replace(/var (import_meta\\d*) = \{\\};/g, (_, m) => 'var ' + m + ' = { url: require(\"url\").pathToFileURL(__filename).href };');
+            fs.writeFileSync('dist/bundle.cjs', code, 'utf-8');
+          "
           # Copy bundle into src-tauri/ for Tauri resource bundling
           mkdir -p "$GITHUB_WORKSPACE/src-tauri/agent-sidecar"
           cp dist/bundle.cjs "$GITHUB_WORKSPACE/src-tauri/agent-sidecar/index.cjs"
