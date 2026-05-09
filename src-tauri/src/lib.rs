@@ -45,13 +45,13 @@ fn find_sidecar_path(app: &tauri::AppHandle) -> PathBuf {
     if dev.exists() {
         return dev;
     }
-    // In production, bundled resources are extracted to the resource dir
-    // The sidecar is bundled at agent-sidecar/ (copy of dist/) under src-tauri/
+    // In production, the bundled sidecar is a single self-contained CJS file
+    // (all dependencies inlined by esbuild, no node_modules/ needed)
     app.path()
         .resource_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
         .join("agent-sidecar")
-        .join("index.js")
+        .join("index.cjs")
 }
 
 fn find_node() -> String {
