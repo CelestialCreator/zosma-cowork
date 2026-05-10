@@ -24,7 +24,8 @@ export function ModelSelector({ models, currentModelId, onSelect }: ModelSelecto
 	}, [open]);
 
 	const current = models.find((m) => m.id === currentModelId);
-	const label = current?.name || currentModelId || "Default";
+	const providerLabel = current?.provider ? current.provider.split("-")[0] : "";
+	const label = current ? `${current.name} (${providerLabel})` : currentModelId || "Default";
 
 	return (
 		<div ref={ref} className="relative">
@@ -50,7 +51,7 @@ export function ModelSelector({ models, currentModelId, onSelect }: ModelSelecto
 								model.id === currentModelId ? "text-primary font-medium" : "text-foreground"
 							}`}
 						>
-							<span className="truncate">{model.name}</span>
+							<span className="truncate">{model.name} <span className="text-muted-foreground">({model.provider.split("-")[0]})</span></span>
 							{model.id === currentModelId && <span className="text-primary">✓</span>}
 						</button>
 					))}

@@ -109,6 +109,9 @@ function App() {
 			// Update loaded messages so the display shows full history
 			setLoadedSessionMessages(merged);
 
+			// Clear stream messages to prevent duplication on next render
+			dispatch({ type: "RESET" });
+
 			// Save to disk
 			invoke("save_session", {
 				sid,
@@ -160,6 +163,11 @@ function App() {
 					defaultModel: modelId,
 					defaultProvider: model?.provider || _provider,
 				},
+			});
+			// Actually set the model on the sidecar so it takes effect immediately
+			await invoke("set_active_model", {
+				provider: model?.provider || _provider,
+				model: modelId,
 			});
 		} catch (err) {
 			console.warn("[settings] save failed:", err);
@@ -264,11 +272,16 @@ function App() {
 							<h1 className="text-sm font-semibold text-foreground">Zosma Cowork</h1>
 							<span className="text-xs text-muted-foreground">OpenCode Go</span>
 						</div>
-						{activeModelId && (
-							<span className="text-xs text-muted-foreground/50 font-mono">
-								{models.find((m) => m.id === activeModelId)?.name || activeModelId}
-							</span>
-						)}
+						{activeModelId && (() => {
+							const m = models.find((m) => m.id === activeModelId);
+							const p = m?.provider?.split("-")[0] || "";
+							return (
+								<span className="text-xs text-muted-foreground/50 font-mono">
+									{m?.name || activeModelId}
+									{p && <span className="text-muted-foreground/30"> ({p})</span>}
+								</span>
+							);
+						})()}
 					</header>
 				)}
 

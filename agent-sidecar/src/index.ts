@@ -617,6 +617,8 @@ async function main() {
 						send({ type: "error", id: cmd.id, message: "Not initialized" });
 						break;
 					}
+					const promptModel = session.model;
+					log("prompt: using model %s/%s", promptModel?.provider, promptModel?.id);
 					activePromptId = cmd.id;
 					try {
 						await session.prompt(cmd.text);
@@ -648,11 +650,15 @@ async function main() {
 					}
 					const found = modelRegistry?.find(cmd.provider, cmd.model);
 					if (found) {
+						log("set_model: found %s/%s (id=%s)", cmd.provider, cmd.model, found.id);
 						await session.setModel(
 							found as Parameters<typeof session.setModel>[0],
 						);
+						const currentModel = session.model;
+						log("set_model: after setModel, session.model = %s/%s", currentModel?.provider, currentModel?.id);
 						send({ type: "result", id: cmd.id, data: { success: true } });
 					} else {
+						log("set_model: NOT FOUND %s/%s", cmd.provider, cmd.model);
 						send({
 							type: "error",
 							id: cmd.id,

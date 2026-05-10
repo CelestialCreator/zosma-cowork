@@ -3,7 +3,7 @@
 // with all dependencies inlined, so no node_modules/ needed at runtime.
 
 import { execSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -27,10 +27,28 @@ code = code.replace(
 );
 writeFileSync(bundlePath, code, "utf-8");
 
-// Copy single bundled file into src-tauri/ for Tauri resource bundling
-const targetPath = join(root, "src-tauri", "agent-sidecar", "index.cjs");
-console.log("[prebuild] Copying bundle to %s...", targetPath);
-mkdirSync(join(root, "src-tauri", "agent-sidecar"), { recursive: true });
-cpSync(bundlePath, targetPath);
+// Inline pi-coding-agent's package.json into the bundle to avoid
+// needing the file at runtime (the bundled code reads its own
+// package.json for name, version, piConfig.configDir, etc.).
+console.log("[prebuild] Inlining pi-coding-agent package.json...");
+const piPkgPath = join(sidecarDir, "node_modules", "@earendil-works", "pi-coding-agent", "package.json");
+const piPkg = JSON.parse(readFileSync(piPkgPath, "utf-8"));
+const inlinedPkg = JSON.stringify({ name: piPkg.name, version: piPkg.version, piConfig: piPkg.piConfig });
+code = code.replace(
+	'var pkg = JSON.parse((0, import_fs.readFileSync)(getPackageJsonPath(), "utf-8"));',
+	`var pkg = ${inlinedPkg};`,
+);
+writeFileSync(bundlePath, code, "utf-8");
+
+// Copy bundled file into src-tauri/ for Tauri resource bundling
+const targetDir = join(root, "src-tauri", "agent-sidecar");
+mkdirSync(targetDir, { recursive: true });
+// Clean stale files from previous builds
+console.log("[prebuild] Cleaning stale artifacts...");
+for (const f of ["index.cjs", "index.d.ts", "index.js", "index.js.map", "index.d.ts.map"]) {
+	try { rmSync(join(targetDir, f)); } catch { /* ignore */ }
+}
+console.log("[prebuild] Copying bundle...");
+cpSync(bundlePath, join(targetDir, "index.cjs"));
 
 console.log("[prebuild] Done (%.1f MB)", code.length / 1024 / 1024);

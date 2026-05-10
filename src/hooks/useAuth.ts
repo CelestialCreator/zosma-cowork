@@ -1,3 +1,4 @@
+import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
 
@@ -19,6 +20,20 @@ export function useAuth() {
 
 	useEffect(() => {
 		refresh();
+	}, [refresh]);
+
+	// Re-check credentials when sidecar becomes ready
+	// (avoids race where initial check runs before sidecar initializes)
+	useEffect(() => {
+		let unlisten: (() => void) | undefined;
+		(async () => {
+			unlisten = await listen("ready", () => {
+				refresh();
+			});
+		})();
+		return () => {
+			unlisten?.();
+		};
 	}, [refresh]);
 
 	const saveApiKey = useCallback(
