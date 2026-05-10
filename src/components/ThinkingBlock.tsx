@@ -4,10 +4,17 @@ import { useState } from "react";
 interface ThinkingBlockProps {
 	thinking: string;
 	isThinking?: boolean;
+	expanded?: boolean;
 }
 
-export function ThinkingBlock({ thinking, isThinking }: ThinkingBlockProps) {
-	const [expanded, setExpanded] = useState(false);
+export function ThinkingBlock({
+	thinking,
+	isThinking,
+	expanded: expandedProp,
+}: ThinkingBlockProps) {
+	const [localExpanded, setLocalExpanded] = useState(false);
+	// Controlled by global Ctrl+O toggle via expanded prop
+	const expanded = expandedProp !== undefined ? expandedProp : localExpanded;
 
 	if (!thinking && !isThinking) return null;
 
@@ -15,7 +22,7 @@ export function ThinkingBlock({ thinking, isThinking }: ThinkingBlockProps) {
 		<div className="mb-1">
 			<button
 				type="button"
-				onClick={() => setExpanded(!expanded)}
+				onClick={() => setLocalExpanded(!localExpanded)}
 				className="flex items-center gap-1 text-[11px] opacity-60 hover:opacity-90 transition-opacity"
 			>
 				<ChevronRight
@@ -27,6 +34,9 @@ export function ThinkingBlock({ thinking, isThinking }: ThinkingBlockProps) {
 					{isThinking ? "Thinking" : "Thoughts"}
 					{thinking && ` · ${thinking.length} chars`}
 				</span>
+				{!expanded && thinking && (
+					<span className="text-[10px] opacity-40 ml-1">· Ctrl+O to expand</span>
+				)}
 			</button>
 			{expanded && (
 				<div className="mt-0.5 pl-4 text-[11px] whitespace-pre-wrap opacity-70 leading-relaxed">

@@ -9,10 +9,10 @@
  *   - Abort button
  */
 
-import type { ChatMessage } from "@/types";
 import type { ToolPhase } from "@/hooks/usePiStream";
+import type { ChatMessage } from "@/types";
 import { Loader2, Square } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type StreamStateStatus = "idle" | "thinking" | "tool_call" | "responding" | "error";
 
@@ -24,21 +24,35 @@ interface StatusBarProps {
 	onAbort: () => void;
 }
 
-export function StatusBar({ isRunning, status, streamingMessage, toolPhase, onAbort }: StatusBarProps) {
+export function StatusBar({
+	isRunning,
+	status,
+	streamingMessage,
+	toolPhase,
+	onAbort,
+}: StatusBarProps) {
 	const [elapsed, setElapsed] = useState(0);
-	const [startTime] = useState(() => Date.now());
+	const startTimeRef = useRef<number | null>(null);
 
-	// Elapsed time counter
+	// Elapsed time counter — reset start time on each stream start
 	useEffect(() => {
 		if (!isRunning) {
 			setElapsed(0);
+			startTimeRef.current = null;
 			return;
 		}
-		const tick = () => setElapsed(Math.floor((Date.now() - startTime) / 1000));
+		if (startTimeRef.current === null) {
+			startTimeRef.current = Date.now();
+		}
+		const tick = () => {
+			if (startTimeRef.current !== null) {
+				setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000));
+			}
+		};
 		tick();
 		const id = setInterval(tick, 1000);
 		return () => clearInterval(id);
-	}, [isRunning, startTime]);
+	}, [isRunning]);
 
 	if (!isRunning) return null;
 
@@ -59,11 +73,11 @@ export function StatusBar({ isRunning, status, streamingMessage, toolPhase, onAb
 		if (toolPhase) {
 			switch (toolPhase.type) {
 				case "calling":
-					statusLabel = "Calling";
+					statusLabel = getToolStatusLabel(toolPhase.toolName, "calling");
 					toolDetail = getToolSummary(toolPhase.toolName, toolPhase.args);
 					break;
 				case "executing":
-					statusLabel = toolPhase.toolName;
+					statusLabel = getToolStatusLabel(toolPhase.toolName, "executing");
 					if (toolPhase.partialOutput) {
 						const firstLine = toolPhase.partialOutput.split("\n")[0] || "";
 						toolDetail = firstLine.length > 40 ? `${firstLine.slice(0, 37)}...` : firstLine;
@@ -80,10 +94,14 @@ export function StatusBar({ isRunning, status, streamingMessage, toolPhase, onAb
 			}
 		} else {
 			const runningTool = toolCalls.find((tc) => tc.status === "running");
-			statusLabel = runningTool ? runningTool.name : "Running tool";
+			if (runningTool) {
+				statusLabel = getToolStatusLabel(runningTool.name, "executing");
+			} else {
+				statusLabel = "Running tool";
+			}
 		}
 	} else if (status === "responding") {
-		statusLabel = "Writing";
+		statusLabel = "Generating response";
 	} else if (status === "error") {
 		statusLabel = "Error";
 	} else {
@@ -106,7 +124,10 @@ export function StatusBar({ isRunning, status, streamingMessage, toolPhase, onAb
 				/>
 
 				{/* Primary status label */}
-				<span className="text-xs font-medium flex-shrink-0" style={{ color: "hsl(var(--status-active-fg))" }}>
+				<span
+					className="text-xs font-medium flex-shrink-0"
+					style={{ color: "hsl(var(--status-active-fg))" }}
+				>
 					{statusLabel}
 				</span>
 
@@ -131,7 +152,8 @@ export function StatusBar({ isRunning, status, streamingMessage, toolPhase, onAb
 											: tc.status === "error"
 												? "hsl(var(--tool-error-fg))"
 												: "hsl(var(--tool-complete-fg))",
-									animation: tc.status === "running" ? "pulse-dot 1.5s ease-in-out infinite" : undefined,
+									animation:
+										tc.status === "running" ? "pulse-dot 1.5s ease-in-out infinite" : undefined,
 								}}
 							/>
 						))}
@@ -171,6 +193,35 @@ export function StatusBar({ isRunning, status, streamingMessage, toolPhase, onAb
 			</button>
 		</div>
 	);
+}
+
+/** Human-readable status label for a tool, based on its name and phase */
+function getToolStatusLabel(toolName: string, phase: "calling" | "executing"): string {
+	if (phase === "calling") return toolName;
+	switch (toolName) {
+		case "write":
+			return "Writing file";
+		case "edit":
+			return "Editing code";
+		case "read":
+			return "Reading";
+		case "bash":
+			return "Running command";
+		case "grep":
+			return "Searching";
+		case "web_search":
+			return "Searching web";
+		case "code_search":
+			return "Searching code";
+		case "fetch_content":
+			return "Fetching";
+		case "find":
+			return "Finding files";
+		case "ls":
+			return "Listing";
+		default:
+			return toolName;
+	}
 }
 
 /** Build a short summary for a tool call from its args */

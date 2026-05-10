@@ -7,9 +7,10 @@ import { ToolCallSummary, ToolCallTimeline } from "./ToolCallTimeline";
 
 interface ChatMessageProps {
 	message: ChatMessageType;
+	detailsExpanded?: boolean;
 }
 
-export function ChatMessageItem({ message }: ChatMessageProps) {
+export function ChatMessageItem({ message, detailsExpanded }: ChatMessageProps) {
 	const [copied, setCopied] = useState(false);
 	const isUser = message.role === "user";
 	const isSystem = message.role === "system";
@@ -112,12 +113,13 @@ export function ChatMessageItem({ message }: ChatMessageProps) {
 					<ThinkingBlock
 						thinking={message.thinking}
 						isThinking={message.isStreaming && message.thinking.length > 0}
+						expanded={detailsExpanded}
 					/>
 				)}
 
 				{/* Tool calls — flat inline timeline */}
 				{!isUser && message.toolCalls && message.toolCalls.length > 0 && (
-					<ToolCallTimeline toolCalls={message.toolCalls} />
+					<ToolCallTimeline toolCalls={message.toolCalls} detailsExpanded={detailsExpanded} />
 				)}
 
 				{/* Content */}
@@ -126,11 +128,12 @@ export function ChatMessageItem({ message }: ChatMessageProps) {
 						className="prose prose-sm max-w-none"
 						style={{ color: isUser ? "hsl(var(--chat-user-fg))" : "hsl(var(--chat-assistant-fg))" }}
 					>
-						<ReactMarkdown remarkPlugins={[remarkGfm]}>
-							{message.content || ""}
-						</ReactMarkdown>
+						<ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content || ""}</ReactMarkdown>
 						{message.isStreaming && (
-							<span className="inline-block w-2 h-4 ml-0.5 align-middle animate-pulse" style={{ background: "hsl(var(--primary))" }} />
+							<span
+								className="inline-block w-2 h-4 ml-0.5 align-middle animate-pulse"
+								style={{ background: "hsl(var(--primary))" }}
+							/>
 						)}
 					</div>
 				)}

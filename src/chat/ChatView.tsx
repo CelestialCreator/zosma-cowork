@@ -2,9 +2,9 @@ import { ChatMessageItem } from "@/components/ChatMessage";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { MessageInput } from "@/components/MessageInput";
 import { StatusBar } from "@/components/StatusBar";
-import type { ChatMessage, ModelInfo } from "@/types";
 import type { ToolPhase } from "@/hooks/usePiStream";
-import { useCallback, useEffect, useRef } from "react";
+import type { ChatMessage, ModelInfo } from "@/types";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type StreamStateStatus = "idle" | "thinking" | "tool_call" | "responding" | "error";
 
@@ -41,6 +41,19 @@ export function ChatView({
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<{ focus: () => void }>(null);
 	const isUserScrolledUp = useRef(false);
+	const [detailsExpanded, setDetailsExpanded] = useState(false);
+
+	// Ctrl+O toggles expanded detail view (thinking, tool calls)
+	useEffect(() => {
+		function handleKeyDown(e: KeyboardEvent) {
+			if (e.ctrlKey && e.key === "o") {
+				e.preventDefault();
+				setDetailsExpanded((prev) => !prev);
+			}
+		}
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, []);
 
 	const handleScroll = useCallback(() => {
 		const container = scrollContainerRef.current;
@@ -50,9 +63,12 @@ export function ChatView({
 	}, []);
 
 	// Build a stable key from tool call state so scroll fires on tool changes too
-	const toolCallsKey = streamingMessage?.toolCalls
-		?.map((tc) => `${tc.id}:${tc.status}:${tc.partialOutput?.length ?? 0}:${tc.result?.length ?? 0}`)
-		.join("|") ?? "";
+	const toolCallsKey =
+		streamingMessage?.toolCalls
+			?.map(
+				(tc) => `${tc.id}:${tc.status}:${tc.partialOutput?.length ?? 0}:${tc.result?.length ?? 0}`,
+			)
+			.join("|") ?? "";
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on any content change including tools
 	useEffect(() => {
@@ -60,7 +76,12 @@ export function ChatView({
 			// Use instant scroll for streaming to avoid jitter from queued smooth animations
 			messagesEndRef.current.scrollIntoView({ behavior: "auto" });
 		}
-	}, [messages.length, streamingMessage?.content.length, streamingMessage?.thinking?.length, toolCallsKey]);
+	}, [
+		messages.length,
+		streamingMessage?.content.length,
+		streamingMessage?.thinking?.length,
+		toolCallsKey,
+	]);
 
 	const allMessages = streamingMessage ? [...messages, streamingMessage] : messages;
 	const isEmpty = messages.length === 0 && !streamingMessage;
@@ -91,10 +112,7 @@ export function ChatView({
 				) : (
 					<div className="pb-4">
 						{allMessages.map((msg) => (
-							<ChatMessageItem
-								key={msg.id}
-								message={msg}
-							/>
+							<ChatMessageItem key={msg.id} message={msg} detailsExpanded={detailsExpanded} />
 						))}
 						<div ref={messagesEndRef} />
 					</div>

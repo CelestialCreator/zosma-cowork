@@ -11,21 +11,22 @@
  */
 
 import type { ToolCallInfo } from "@/types";
-import { Loader2, AlertCircle, Check } from "lucide-react";
+import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { useState } from "react";
 
 // ─── Main timeline ──────────────────────────────────────────────────
 
 interface ToolCallTimelineProps {
 	toolCalls: ToolCallInfo[];
+	detailsExpanded?: boolean;
 }
 
-export function ToolCallTimeline({ toolCalls }: ToolCallTimelineProps) {
+export function ToolCallTimeline({ toolCalls, detailsExpanded }: ToolCallTimelineProps) {
 	if (toolCalls.length === 0) return null;
 	return (
 		<div className="flex flex-col gap-1 my-1.5">
 			{toolCalls.map((tc) => (
-				<ToolCallBlock key={tc.id} toolCall={tc} />
+				<ToolCallBlock key={tc.id} toolCall={tc} detailsExpanded={detailsExpanded} />
 			))}
 		</div>
 	);
@@ -33,9 +34,14 @@ export function ToolCallTimeline({ toolCalls }: ToolCallTimelineProps) {
 
 // ─── Single tool block ──────────────────────────────────────────────
 
-function ToolCallBlock({ toolCall }: { toolCall: ToolCallInfo }) {
+function ToolCallBlock({
+	toolCall,
+	detailsExpanded,
+}: { toolCall: ToolCallInfo; detailsExpanded?: boolean }) {
+	const [localExpanded, setLocalExpanded] = useState(false);
 	const isRunning = toolCall.status === "running";
 	const isError = toolCall.status === "error";
+	const showContent = detailsExpanded !== undefined ? detailsExpanded : localExpanded;
 
 	const accentColor = isRunning
 		? "hsl(var(--tool-running-fg))"
@@ -60,7 +66,11 @@ function ToolCallBlock({ toolCall }: { toolCall: ToolCallInfo }) {
 			}}
 		>
 			{/* Header line */}
-			<div className="flex items-center gap-1.5 px-2 pt-1.5 pb-0.5">
+			<button
+				type="button"
+				className="flex items-center gap-1.5 px-2 pt-1.5 pb-0.5 w-full text-left cursor-pointer select-none"
+				onClick={() => setLocalExpanded(!localExpanded)}
+			>
 				{isRunning ? (
 					<Loader2 className="w-3 h-3 animate-spin flex-shrink-0" style={{ color: accentColor }} />
 				) : isError ? (
@@ -68,18 +78,21 @@ function ToolCallBlock({ toolCall }: { toolCall: ToolCallInfo }) {
 				) : (
 					<Check className="w-3 h-3 flex-shrink-0" style={{ color: accentColor }} />
 				)}
-				<span className="opacity-90">{header}</span>
-			</div>
+				<span className="opacity-90 flex-1">{header}</span>
+				{!showContent && !isRunning && (
+					<span className="text-[10px] opacity-40 flex-shrink-0">Ctrl+O</span>
+				)}
+			</button>
 
 			{/* Status sub-line */}
-			{statusLine && (
-				<div className="px-2 pb-1 opacity-60">{statusLine}</div>
-			)}
+			{statusLine && <div className="px-2 pb-1 opacity-60">{statusLine}</div>}
 
-			{/* Content */}
-			<div className="px-2 pb-1.5">
-				<ToolContent toolCall={toolCall} />
-			</div>
+			{/* Content (collapsible) */}
+			{showContent && (
+				<div className="px-2 pb-1.5">
+					<ToolContent toolCall={toolCall} />
+				</div>
+			)}
 		</div>
 	);
 }
@@ -111,10 +124,7 @@ function buildHeader(tc: ToolCallInfo): { header: string; statusLine?: string } 
 			const { added, removed } = diffStats(tc.result || "");
 			return {
 				header: `edit ${shortenPath(path)} (${lineCount} lines)`,
-				statusLine:
-					tc.status === "completed"
-						? `└ diff +${added} -${removed} split`
-						: undefined,
+				statusLine: tc.status === "completed" ? `└ diff +${added} -${removed} split` : undefined,
 			};
 		}
 
@@ -156,7 +166,9 @@ function buildHeader(tc: ToolCallInfo): { header: string; statusLine?: string } 
 
 		case "web_search":
 		case "code_search": {
-			const q = str(args.query) || (Array.isArray(args.queries) ? (args.queries as string[]).join(", ") : "");
+			const q =
+				str(args.query) ||
+				(Array.isArray(args.queries) ? (args.queries as string[]).join(", ") : "");
 			return { header: `${tc.name} ${q.slice(0, 80)}` };
 		}
 
@@ -176,10 +188,21 @@ function buildHeader(tc: ToolCallInfo): { header: string; statusLine?: string } 
 function ToolContent({ toolCall }: { toolCall: ToolCallInfo }) {
 	const isRunning = toolCall.status === "running";
 
-	// Running: show partial output (already truncated)
-	if (isRunning && toolCall.partialOutput) {
+	// Running: show partial output or a live indicator
+	if (isRunning) {
+		if (toolCall.partialOutput) {
+			return <TruncatedOutput text={toolCall.partialOutput} limit={800} />;
+		}
+		// No partial output yet — show a running indicator so user sees activity
+		const runningLabel = getRunningLabel(toolCall.name);
 		return (
-			<TruncatedOutput text={toolCall.partialOutput} limit={800} />
+			<div className="flex items-center gap-1.5 text-[11px] opacity-70">
+				<span
+					className="inline-block w-1.5 h-1.5 rounded-full animate-pulse-dot"
+					style={{ background: "hsl(var(--tool-running-fg))" }}
+				/>
+				<span>{runningLabel}</span>
+			</div>
 		);
 	}
 
@@ -218,6 +241,34 @@ function ToolContent({ toolCall }: { toolCall: ToolCallInfo }) {
 	return <TruncatedOutput text={toolCall.result} limit={2000} />;
 }
 
+/** Human-readable label for a running tool */
+function getRunningLabel(toolName: string): string {
+	switch (toolName) {
+		case "write":
+			return "Writing file...";
+		case "edit":
+			return "Editing code...";
+		case "read":
+			return "Reading...";
+		case "bash":
+			return "Running command...";
+		case "grep":
+			return "Searching...";
+		case "web_search":
+			return "Searching web...";
+		case "code_search":
+			return "Searching code...";
+		case "fetch_content":
+			return "Fetching...";
+		case "find":
+			return "Finding files...";
+		case "ls":
+			return "Listing...";
+		default:
+			return `${toolName}...`;
+	}
+}
+
 // ─── Truncated output with expand ───────────────────────────────────
 
 function TruncatedOutput({ text, limit }: { text: string; limit: number }) {
@@ -225,11 +276,7 @@ function TruncatedOutput({ text, limit }: { text: string; limit: number }) {
 	const needsTruncation = text.length > limit;
 
 	if (!needsTruncation || expanded) {
-		return (
-			<pre className="text-[11px] whitespace-pre-wrap opacity-80">
-				{text}
-			</pre>
-		);
+		return <pre className="text-[11px] whitespace-pre-wrap opacity-80">{text}</pre>;
 	}
 
 	const lines = text.split("\n");
@@ -238,9 +285,7 @@ function TruncatedOutput({ text, limit }: { text: string; limit: number }) {
 
 	return (
 		<div>
-			<pre className="text-[11px] whitespace-pre-wrap opacity-80">
-				{truncated}
-			</pre>
+			<pre className="text-[11px] whitespace-pre-wrap opacity-80">{truncated}</pre>
 			<button
 				type="button"
 				onClick={() => setExpanded(true)}
@@ -329,7 +374,12 @@ function collapseContext(hunk: DiffLine[]): DiffLine[] {
 		} else {
 			if (contextRun.length >= 4) {
 				result.push(contextRun[0]);
-				result.push({ oldNum: null, newNum: null, type: "ellipsis", text: `··· ${contextRun.length - 2} lines ···` });
+				result.push({
+					oldNum: null,
+					newNum: null,
+					type: "ellipsis",
+					text: `··· ${contextRun.length - 2} lines ···`,
+				});
 				result.push(contextRun[contextRun.length - 1]);
 			} else {
 				result.push(...contextRun);
@@ -341,7 +391,12 @@ function collapseContext(hunk: DiffLine[]): DiffLine[] {
 
 	if (contextRun.length >= 4) {
 		result.push(contextRun[0]);
-		result.push({ oldNum: null, newNum: null, type: "ellipsis", text: `··· ${contextRun.length - 2} lines ···` });
+		result.push({
+			oldNum: null,
+			newNum: null,
+			type: "ellipsis",
+			text: `··· ${contextRun.length - 2} lines ···`,
+		});
 		result.push(contextRun[contextRun.length - 1]);
 	} else {
 		result.push(...contextRun);
@@ -378,7 +433,11 @@ function SplitDiff({ diffText }: { diffText: string }) {
 						{hunk
 							.filter((l) => l.type !== "header" && l.type !== "hunk")
 							.map((line) => (
-								<DiffRow key={`${line.oldNum ?? 'n'}-${line.newNum ?? 'n'}-${line.text.slice(0, 30)}`} line={line} isNewFile={isNewFile} />
+								<DiffRow
+									key={`${line.oldNum ?? "n"}-${line.newNum ?? "n"}-${line.text.slice(0, 30)}`}
+									line={line}
+									isNewFile={isNewFile}
+								/>
 							))}
 					</div>
 				</div>
@@ -398,7 +457,9 @@ function DiffRow({ line, isNewFile }: { line: DiffLine; isNewFile: boolean }) {
 		return (
 			<>
 				{!isNewFile && <div className="px-1 py-0.5 opacity-30 text-center">{line.text}</div>}
-				<div className={`px-1 py-0.5 opacity-30 text-center ${isNewFile ? "col-span-2" : ""}`}>{line.text}</div>
+				<div className={`px-1 py-0.5 opacity-30 text-center ${isNewFile ? "col-span-2" : ""}`}>
+					{line.text}
+				</div>
 			</>
 		);
 	}
@@ -419,7 +480,10 @@ function DiffRow({ line, isNewFile }: { line: DiffLine; isNewFile: boolean }) {
 		return (
 			<>
 				{!isNewFile && <div className="px-1" style={{ background: addBg }} />}
-				<div className={`px-1 flex gap-1 ${isNewFile ? "col-span-2" : ""}`} style={{ background: addBg, color: addFg }}>
+				<div
+					className={`px-1 flex gap-1 ${isNewFile ? "col-span-2" : ""}`}
+					style={{ background: addBg, color: addFg }}
+				>
 					<span className="opacity-40 w-6 text-right flex-shrink-0">{line.newNum}</span>
 					<span className="truncate">{line.text || " "}</span>
 				</div>
@@ -436,7 +500,10 @@ function DiffRow({ line, isNewFile }: { line: DiffLine; isNewFile: boolean }) {
 					<span className="truncate">{line.text || " "}</span>
 				</div>
 			)}
-			<div className={`px-1 flex gap-1 ${isNewFile ? "col-span-2" : ""}`} style={{ color: contextFg }}>
+			<div
+				className={`px-1 flex gap-1 ${isNewFile ? "col-span-2" : ""}`}
+				style={{ color: contextFg }}
+			>
 				<span className="opacity-40 w-6 text-right flex-shrink-0">{line.newNum}</span>
 				<span className="truncate">{line.text || " "}</span>
 			</div>
