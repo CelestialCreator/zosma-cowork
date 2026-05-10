@@ -102,9 +102,7 @@ function App() {
 			if (merged.length === 0) return;
 
 			const firstMsg = merged[0];
-			const title = typeof firstMsg.content === "string"
-				? firstMsg.content.slice(0, 80)
-				: "Chat";
+			const title = typeof firstMsg.content === "string" ? firstMsg.content.slice(0, 80) : "Chat";
 
 			// Update loaded messages so the display shows full history
 			setLoadedSessionMessages(merged);
@@ -142,10 +140,27 @@ function App() {
 	const handleSend = useCallback(
 		async (text: string) => {
 			let sessionFile = activeSessionFile;
+			const isNewSession = !sessionFile;
 			if (!sessionFile) {
 				sessionFile = `session-${Date.now()}.jsonl`;
 				setActiveSessionFile(sessionFile);
 			}
+
+			// Immediately show session in sidebar with title from first message
+			if (isNewSession) {
+				const title = text.length > 80 ? `${text.slice(0, 77)}...` : text;
+				setSessionEntries((prev) => [
+					{
+						file: sessionFile,
+						title,
+						messageCount: 1,
+						createdAt: Date.now(),
+						lastActivity: Date.now(),
+					},
+					...prev,
+				]);
+			}
+
 			// Keep loadedSessionMessages — startStream only produces the new turn.
 			// Merging happens in the stream-complete effect above.
 			startStream(text);
@@ -272,16 +287,17 @@ function App() {
 							<h1 className="text-sm font-semibold text-foreground">Zosma Cowork</h1>
 							<span className="text-xs text-muted-foreground">OpenCode Go</span>
 						</div>
-						{activeModelId && (() => {
-							const m = models.find((m) => m.id === activeModelId);
-							const p = m?.provider?.split("-")[0] || "";
-							return (
-								<span className="text-xs text-muted-foreground/50 font-mono">
-									{m?.name || activeModelId}
-									{p && <span className="text-muted-foreground/30"> ({p})</span>}
-								</span>
-							);
-						})()}
+						{activeModelId &&
+							(() => {
+								const m = models.find((m) => m.id === activeModelId);
+								const p = m?.provider?.split("-")[0] || "";
+								return (
+									<span className="text-xs text-muted-foreground/50 font-mono">
+										{m?.name || activeModelId}
+										{p && <span className="text-muted-foreground/30"> ({p})</span>}
+									</span>
+								);
+							})()}
 					</header>
 				)}
 
@@ -308,9 +324,7 @@ function App() {
 							onSend={handleSend}
 							onAbort={() => abortStream()}
 							onRetry={() => {
-								const lastUser = [...displayMessages]
-									.reverse()
-									.find((m) => m.role === "user");
+								const lastUser = [...displayMessages].reverse().find((m) => m.role === "user");
 								if (lastUser?.content) handleSend(lastUser.content);
 							}}
 							models={models}
