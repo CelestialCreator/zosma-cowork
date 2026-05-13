@@ -119,7 +119,10 @@ jobs:
             echo "APPLE_PASSWORD=${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}" >> $GITHUB_ENV
             echo "✅ macOS signing configured"
           else
-            echo "⚠️  APPLE_SIGNING_IDENTITY not set — skipping code signing"
+            # Set identity to "-" to explicitly skip codesigning
+            # (empty string causes Tauri to attempt signing and fail)
+            echo "APPLE_SIGNING_IDENTITY=-" >> $GITHUB_ENV
+            echo "⚠️  APPLE_SIGNING_IDENTITY not set — codesigning disabled"
           fi
 
       - name: Configure Windows signing certificate
