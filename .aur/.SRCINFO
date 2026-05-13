@@ -1,9 +1,8 @@
 pkgbase = zosma-cowork-bin
 	pkgdesc = Desktop AI coworker built on the pi coding agent — streaming, thinking, tool calls
-	pkgver = 0.7.0
+	pkgver = 0.8.3
 	pkgrel = 1
 	url = https://github.com/zosmaai/zosma-cowork
-	install = 
 	arch = x86_64
 	license = MIT
 	depends = webkit2gtk-4.1
@@ -13,7 +12,8 @@ pkgbase = zosma-cowork-bin
 	depends = librsvg
 	provides = zosma-cowork
 	conflicts = zosma-cowork
-	source = zosma-cowork-0.7.0.deb::https://github.com/zosmaai/zosma-cowork/releases/download/v0.7.0/Zosma.Cowork_0.7.0_amd64.deb
+	options = !strip
+	source = zosma-cowork-0.8.3.deb::https://github.com/zosmaai/zosma-cowork/releases/download/v0.8.3/zosma-cowork_0.8.3_amd64.deb
 	sha256sums = SKIP
 
 pkgname = zosma-cowork-bin
