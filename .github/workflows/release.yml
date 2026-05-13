@@ -175,6 +175,6 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "${{ github.ref_name }}"
           releaseBody: "Download the latest Zosma Cowork release."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
