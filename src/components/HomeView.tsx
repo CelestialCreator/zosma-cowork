@@ -87,8 +87,10 @@ export function HomeView({ onComplete }: OnboardingProps) {
 						icon="⚡"
 						text="Connect to any AI — Claude, ChatGPT, Copilot, OpenAI, or local models"
 					/>
-					<FeatureRow icon="🧩" text="Extensible with tools, skills & themes" />
+					<FeatureRow icon="🧩" text="All pi extensions, skills & themes work out of the box" />
 					<FeatureRow icon="🔒" text="Your code stays local — no data leaves your machine" />
+					<FeatureRow icon="🆓" text="100% free & open-source — no subscriptions, no caps" />
+					<FeatureRow icon="👥" text="Set up a minimal harness for non-technical friends & colleagues" />
 				</div>
 
 				{/* Made in India branding */}
@@ -97,7 +99,7 @@ export function HomeView({ onComplete }: OnboardingProps) {
 						🇮🇳 Made in India — From India to the World 🌏
 					</p>
 					<p className="text-[9px]" style={{ color: "hsl(var(--muted-foreground) / 0.4)" }}>
-						With ❤️ from Zosma AI
+						Free for everyone 🆓 — Built on pi, the minimal agentic harness
 					</p>
 				</div>
 

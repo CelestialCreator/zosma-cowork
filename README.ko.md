@@ -15,6 +15,35 @@
 
 ![zosma-cowork-스크린샷](./assets/screenshot.png)
 
+## Demo
+
+<video src="./assets/demo.mp4" controls width="100%">
+  Your browser doesn't support the video tag. [Download the demo](./assets/demo.mp4).
+</video>
+
+## Zosma Cowork 를 선택해야 하는 이유
+
+### 🌟 pi 기반 최초의 데스크톱 코워커
+
+Zosma Cowork는 [pi](https://github.com/earendil-works/pi-coding-agent) — 최소한의 언어에 구애받지 않는 코딩 에이전트 하니스 — 위에 구축된 최초의 데스크톱 애플리케이션입니다. 모든 pi 확장이 래퍼나 어댑터 없이 직접 작동합니다.
+
+### 🆓 무료, Freemium 아님
+
+월 $20의 구독료 없음. 기능 제한 없음. 사용 상한 없음. Zosma Cowork는 **100% 무료 오픈소스** (MIT)입니다. 자신의 API 키를 가져오거나 로컬 모델을 사용하세요 — 비용을 직접 제어할 수 있습니다.
+
+### 🧩 완전한 pi 확장 생태계
+
+[pi 생태계](https://github.com/earendil-works/pi-coding-agent)에는 수백 개의 확장, 스킬, 도구, 프롬프트, 테마가 포함되어 있습니다 — 모두 Zosma Cowork와 호환됩니다. `~/.zosmaai/cowork/`에 플러그인하기만 하면 작동합니다. 어댑터 불필요, 락인 없음.
+
+### 👥 비기술자 동료의 시작을 도우세요
+
+에이전트 워크는 CLI 명령어를 입력할 수 있는 사람만을 위한 것이 아닙니다. **비개발자도 최소한의 접근 가능한 워크 하니스를 가질 자격이 있습니다.** 기술에 익숙하지 않은 친구와 동료를 위해 Zosma Cowork를 설정하세요 — 무료, 간단, 즉시 사용 가능.
+
+**이것이 인도 개발자가 기여해야 하는 이유입니다.** 당신이 또 다른 도구를 필요로 해서가 아니라 — 당신의 비기술자 친구들이 에이전트 AI 세계로의 무료하고 간단한 진입로를 필요로 하기 때문입니다.
+
+> *"인도는 기술을 소비만 하지 않습니다 — 우리는 그것을 구축하고, 출시하고, 선도합니다. 그리고 누구도 뒤처지지 않도록 합니다."*
+
+
 ## 기능
 
 - **인프로세스 에이전트 런타임** — pi agent SDK가 앱 내에서 직접 실행 (서브프로세스 없음, 런타임 시 CLI 의존성 없음)

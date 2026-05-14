@@ -15,6 +15,35 @@
 
 ![zosma-cowork-captura](./assets/screenshot.png)
 
+## Demo
+
+<video src="./assets/demo.mp4" controls width="100%">
+  Your browser doesn't support the video tag. [Download the demo](./assets/demo.mp4).
+</video>
+
+## ¿Por qué Zosma Cowork?
+
+### 🌟 El primer escritorio colaborativo basado en pi
+
+Zosma Cowork es la primera aplicación de escritorio construida sobre [pi](https://github.com/earendil-works/pi-coding-agent) — el arnés de agente mínimo y agnóstico al lenguaje. Cada extensión de pi funciona directamente, sin envoltorios ni adaptadores.
+
+### 🆓 Gratuito, no Freemium
+
+Sin suscripciones de $20/mes. Sin límites de funciones. Sin restricciones de uso. Zosma Cowork es **100% gratuito y de código abierto** (MIT). Trae tu propia clave API o usa modelos locales — tú controlas los costos.
+
+### 🧩 Ecosistema completo de extensiones pi
+
+El [ecosistema pi](https://github.com/earendil-works/pi-coding-agent) incluye cientos de extensiones, skills, herramientas, prompts y temas — todos compatibles con Zosma Cowork. Plúgalos en `~/.zosmaai/cowork/` y funcionan. Sin adaptadores, sin bloqueo.
+
+### 👥 Ayuda a colegas no técnicos a comenzar
+
+El trabajo agentivo no debería limitarse a quienes saben usar la CLI. **Los no programadores también merecen un arnés de trabajo mínimo y accesible.** Configura Zosma Cowork para tus amigos y colegas no técnicos — gratis, simple, listo para usar.
+
+**Por eso los desarrolladores indios deberían contribuir.** No porque necesites otra herramienta — sino porque tus amigos no técnicos necesitan una entrada gratuita y simple al mundo de la IA agentiva.
+
+> *"India no solo consume tecnología — la construimos, la enviamos, la lideramos. Y nos aseguramos de que nadie se quede atrás."*
+
+
 ## Características
 
 - **Tiempo de ejecución del agente en proceso** — El SDK de pi agent se ejecuta directamente dentro de la aplicación (sin subprocesos, sin dependencia de CLI en tiempo de ejecución)
