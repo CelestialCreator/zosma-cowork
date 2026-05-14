@@ -15,6 +15,35 @@
 
 ![zosma-cowork-capture](./assets/screenshot.png)
 
+## Demo
+
+<video src="./assets/demo.mp4" controls width="100%">
+  Your browser doesn't support the video tag. [Download the demo](./assets/demo.mp4).
+</video>
+
+## Pourquoi Zosma Cowork ?
+
+### 🌟 Le premier coworker de bureau basé sur pi
+
+Zosma Cowork est la première application de bureau construite sur [pi](https://github.com/earendil-works/pi-coding-agent) — le harnais d'agent minimal et indépendant du langage. Chaque extension pi fonctionne directement, sans wrapper ni adaptateur.
+
+### 🆓 Gratuit, pas Freemium
+
+Pas d'abonnement à $20/mois. Pas de limitations de fonctionnalités. Pas de plafonds d'utilisation. Zosma Cowork est **100% gratuit et open-source** (MIT). Apportez votre propre clé API ou utilisez des modèles locaux — vous contrôlez les coûts.
+
+### 🧩 Écosystème complet d'extensions pi
+
+L'[écosystème pi](https://github.com/earendil-works/pi-coding-agent) comprend des centaines d'extensions, compétences, outils, prompts et thèmes — tous compatibles avec Zosma Cowork. Branchez-les dans `~/.zosmaai/cowork/` et ils fonctionnent. Pas d'adaptateurs, pas de verrouillage.
+
+### 👥 Aidez vos collègues non techniques à démarrer
+
+Le travail agentique ne devrait pas être réservé à ceux qui savent taper des commandes CLI. **Les non-codeurs méritent aussi un harnais de travail minimal et accessible.** Configurez Zosma Cowork pour vos amis et collègues non techniques — gratuit, simple, prêt à l'emploi.
+
+**C'est pourquoi les développeurs indiens devraient contribuer.** Pas parce que vous avez besoin d'un autre outil — mais parce que vos amis non techniques ont besoin d'une entrée gratuite et simple dans le monde de l'IA agentique.
+
+> *"L'Inde ne se contente pas de consommer la technologie — nous la construisons, nous l'expédions, nous la menons. Et nous veillons à ce que personne ne soit laissé pour compte."*
+
+
 ## Fonctionnalités
 
 - **Exécution de l'agent en processus** — Le SDK pi agent s'exécute directement dans l'application (pas de sous-processus, pas de dépendance CLI à l'exécution)

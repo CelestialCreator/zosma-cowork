@@ -13,6 +13,35 @@
 
 ![zosma-cowork-截图](./assets/screenshot.png)
 
+## Demo
+
+<video src="./assets/demo.mp4" controls width="100%">
+  Your browser doesn't support the video tag. [Download the demo](./assets/demo.mp4).
+</video>
+
+## 为什么选择 Zosma Cowork？
+
+### 🌟 第一个基于 pi 的桌面协作工具
+
+Zosma Cowork 是第一个基于 [pi](https://github.com/earendil-works/pi-coding-agent) 构建的桌面应用程序 — 最小化、语言无关的编码智能体工具链。每个 pi 扩展都可以直接使用，无需包装器或适配器。
+
+### 🆓 免费，不是 Freemium
+
+无需 $20/月订阅。无功能限制。无使用上限。Zosma Cowork **100% 免费开源** (MIT)。带上你的 API 密钥或使用本地模型 — 费用由你掌控。
+
+### 🧩 完整的 pi 扩展生态系统
+
+[pi 生态系统](https://github.com/earendil-works/pi-coding-agent) 包含数百个扩展、技能、工具、提示和主题 — 全部与 Zosma Cowork 兼容。只需放入 `~/.zosmaai/cowork/` 目录即可使用。无需适配器，无锁定。
+
+### 👥 帮助非技术朋友入门
+
+智能工作不应仅限于懂 CLI 命令的人。**非编码者也应该拥有一个最小化、易用的工作工具。** 为你的非技术朋友、团队成员设置 Zosma Cowork — 免费、简单、开箱即用。
+
+**这是印度开发者应该贡献的原因。** 不是因为你需要另一个工具 — 而是因为你的非技术朋友需要一个免费、简单的智能 AI 入门工具。
+
+> *"印度不仅消费技术 — 我们构建它、交付它、引领它。我们确保没有人掉队。"*
+
+
 ## 功能特性
 
 - **进程内代理运行时** — pi agent SDK 直接在应用内运行（无子进程，运行时无需 CLI）
