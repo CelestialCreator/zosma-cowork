@@ -18,11 +18,8 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            args: "--target aarch64-apple-darwin"
-            name: macOS-arm64
-          # - platform: macos-latest
-          #   args: "--target x86_64-apple-darwin"
-          #   name: macOS-x64
+            args: "--target universal-apple-darwin"
+            name: macOS-universal
           - platform: ubuntu-22.04
             args: ""
             name: Linux-x64
@@ -42,10 +39,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-
-      # - name: Add x86_64 target for cross-compilation
-      #   if: matrix.args == '--target x86_64-apple-darwin'
-      #   run: rustup target add x86_64-apple-darwin
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Install dependencies (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
