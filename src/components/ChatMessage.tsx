@@ -1,5 +1,7 @@
+import { invoke } from "@tauri-apps/api/core";
+import { Clipboard, Download, FolderOpen } from "lucide-react";
 import type { ChatMessage as ChatMessageType } from "@/types";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ThinkingBlock } from "./ThinkingBlock";
@@ -10,12 +12,20 @@ interface ChatMessageProps {
 	detailsExpanded?: boolean;
 }
 
+function extractFilePath(content: string): string | null {
+	const match = content.match(/(?:Written|Created|Wrote)\s+(?:\d+\s+lines\s+)?(?:to\s+)?(.+?)(?:\s+\(|$)/m);
+	return match?.[1]?.trim() ?? null;
+}
+
 export function ChatMessageItem({ message, detailsExpanded }: ChatMessageProps) {
 	const [copied, setCopied] = useState(false);
+	const [saving, setSaving] = useState(false);
 	const isUser = message.role === "user";
 	const isSystem = message.role === "system";
 
-	async function copyToClipboard(text: string) {
+	const filePath = !isUser && message.content ? extractFilePath(message.content) : null;
+
+	const copyToClipboard = useCallback(async (text: string) => {
 		try {
 			await navigator.clipboard.writeText(text);
 			setCopied(true);
@@ -23,7 +33,45 @@ export function ChatMessageItem({ message, detailsExpanded }: ChatMessageProps) 
 		} catch {
 			// fallback
 		}
-	}
+	}, []);
+
+	const saveToFile = useCallback(async (content: string) => {
+		try {
+			const { save } = await import("@tauri-apps/plugin-dialog");
+			const path = await save({
+				defaultPath: "zosma-export.md",
+				filters: [
+					{
+						name: "Markdown",
+						extensions: ["md", "mdx", "txt"],
+					},
+					{
+						name: "All files",
+						extensions: ["*"],
+					},
+				],
+			});
+			if (!path) return;
+			setSaving(true);
+			await invoke("write_user_file", { path, content });
+		} catch {
+			// ignore
+		} finally {
+			setSaving(false);
+		}
+	}, []);
+
+	const openFolder = useCallback(async (path: string) => {
+		try {
+			// Get parent directory
+			const parentDir = path.substring(0, path.lastIndexOf("/"));
+			if (parentDir) {
+				await invoke("open_url", { url: `file://${parentDir}` });
+			}
+		} catch {
+			// ignore
+		}
+	}, []);
 
 	if (isSystem) {
 		return (
@@ -138,16 +186,39 @@ export function ChatMessageItem({ message, detailsExpanded }: ChatMessageProps) 
 					</div>
 				)}
 
-				{/* Actions */}
+				{/* Export Actions */}
 				{!isUser && message.content && !message.isStreaming && (
-					<div className="flex gap-2 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+					<div className="flex items-center gap-1.5 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
 						<button
 							type="button"
 							onClick={() => copyToClipboard(message.content)}
-							className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+							aria-label="Copy content"
+							className="flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
 						>
+							<Clipboard size={12} />
 							{copied ? "Copied!" : "Copy"}
 						</button>
+						<button
+							type="button"
+							onClick={() => saveToFile(message.content)}
+							disabled={saving}
+							aria-label="Save to file"
+							className="flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50"
+						>
+							<Download size={12} />
+							{saving ? "Saving..." : "Save"}
+						</button>
+						{filePath && (
+							<button
+								type="button"
+								onClick={() => openFolder(filePath)}
+								aria-label="Open folder"
+								className="flex items-center gap-1 rounded px-1.5 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+							>
+								<FolderOpen size={12} />
+								Open Folder
+							</button>
+						)}
 					</div>
 				)}
 			</div>

@@ -555,6 +555,13 @@ async fn search_discover(query: String, s: State<'_, AppState>) -> Result<Value,
 }
 
 #[tauri::command]
+async fn write_user_file(path: String, content: String) -> Result<(), String> {
+    tokio::fs::write(&path, &content)
+        .await
+        .map_err(|e| format!("write_file: {e}"))
+}
+
+#[tauri::command]
 async fn open_url(url: String) -> Result<(), String> {
     let st = std::process::Command::new("sh")
         .arg("-c")
@@ -643,6 +650,7 @@ pub fn run() {
             set_extension_enabled,
             set_extension_config,
             search_discover,
+            write_user_file,
             open_url,
         ])
         .run(tauri::generate_context!())
