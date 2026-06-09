@@ -5,6 +5,7 @@ import { Check, ChevronDown, Eye, EyeOff, Key, Loader2 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ClaudeIcon, GitHubIcon, OpenAIIcon } from "../BrandIcons";
+import { CustomProviderRow } from "./CustomProviderRow";
 
 // onShowKeyEntry kept for API compat but no longer used — key entry is inline
 interface Props {
@@ -82,6 +83,9 @@ export function Authentication({ onShowKeyEntry: _onShowKeyEntry }: Props) {
 
 				{/* Inline API key row */}
 				<ApiKeyRow authStatus={authStatus} onSaved={refreshStatus} />
+
+				{/* Custom OpenAI-compatible endpoint (issue #207) */}
+				<CustomProviderRow onChange={refreshStatus} />
 			</div>
 		</section>
 	);

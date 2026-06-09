@@ -132,6 +132,11 @@ import {
 	piAuthPath,
 	readAuthFile,
 } from "./auth-seed.js";
+import {
+	deleteCustomProvider,
+	listCustomProviders,
+	saveCustomProvider,
+} from "./custom-providers.js";
 // Vendored pi-anthropic-messages bridge (see scripts/prebuild.mjs). Without
 // this loaded as an extension, Claude Pro/Max OAuth requests are
 // fingerprinted by Anthropic as a "third-party app" and rejected with a
@@ -267,6 +272,26 @@ interface LogoutCommand {
 interface GetAuthStatusCommand {
 	type: "get_auth_status";
 	id: string;
+}
+
+/** List user-added custom OpenAI-compatible providers (issue #207). */
+interface ListCustomProvidersCommand {
+	type: "list_custom_providers";
+	id: string;
+}
+
+/** Upsert a custom OpenAI-compatible provider (issue #207). */
+interface SaveCustomProviderCommand {
+	type: "save_custom_provider";
+	id: string;
+	provider: import("./custom-providers.js").SaveCustomProviderInput;
+}
+
+/** Remove a custom OpenAI-compatible provider by id (issue #207). */
+interface DeleteCustomProviderCommand {
+	type: "delete_custom_provider";
+	id: string;
+	providerId: string;
 }
 
 /** Broker the single Google OAuth consent (union scopes) and fan creds out. */
@@ -471,6 +496,9 @@ type Command =
 	| CancelOAuthCommand
 	| LogoutCommand
 	| GetAuthStatusCommand
+	| ListCustomProvidersCommand
+	| SaveCustomProviderCommand
+	| DeleteCustomProviderCommand
 	| ConnectGoogleCommand
 	| GetGoogleStatusCommand
 	| DisconnectGoogleCommand
@@ -2151,6 +2179,58 @@ async function main() {
 						id: cmd.id,
 						data: { providers, supported, apiKeyProviders },
 					});
+					break;
+				}
+
+				// ── custom OpenAI-compatible providers (issue #207) ─────────
+				//
+				// Three handlers that let the UI add / list / remove user-defined
+				// providers in models.json's `providers.<id>` map. After save or
+				// delete we re-run initAgent() so ModelRegistry reloads from disk
+				// and the model selector sees the change immediately.
+				case "list_custom_providers": {
+					const modelsPath = join(zosmaAgentDir(zosmaDir), "models.json");
+					send({
+						type: "result",
+						id: cmd.id,
+						data: { providers: listCustomProviders(modelsPath) },
+					});
+					break;
+				}
+
+				case "save_custom_provider": {
+					const modelsPath = join(zosmaAgentDir(zosmaDir), "models.json");
+					try {
+						saveCustomProvider(modelsPath, cmd.provider);
+					} catch (err) {
+						send({
+							type: "error",
+							id: cmd.id,
+							message: err instanceof Error ? err.message : String(err),
+						});
+						break;
+					}
+					log("Saved custom provider %s", cmd.provider.id);
+					// Reload the agent so ModelRegistry picks up the new provider
+					// without an app restart.
+					await initAgent(zosmaDir);
+					// Surface ModelRegistry's own validation result so the UI can
+					// show a precise error if pi-mono rejected the merged config.
+					const regError = modelRegistry?.getError();
+					if (regError) {
+						send({ type: "error", id: cmd.id, message: regError });
+						break;
+					}
+					send({ type: "result", id: cmd.id, data: { success: true } });
+					break;
+				}
+
+				case "delete_custom_provider": {
+					const modelsPath = join(zosmaAgentDir(zosmaDir), "models.json");
+					deleteCustomProvider(modelsPath, cmd.providerId);
+					log("Deleted custom provider %s", cmd.providerId);
+					await initAgent(zosmaDir);
+					send({ type: "result", id: cmd.id, data: { success: true } });
 					break;
 				}
 

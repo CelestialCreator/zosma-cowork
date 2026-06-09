@@ -782,6 +782,51 @@ async fn save_auth_key(
     .await
 }
 
+// ─── Custom OpenAI-compatible providers (issue #207) ───────────────────────
+// Thin forwarders for the three sidecar commands that read/write the
+// `providers.<id>` section of models.json. The UI never touches models.json
+// directly; pi-coding-agent's ModelRegistry owns that file and we re-init it
+// inside the sidecar on every save/delete so the model selector refreshes.
+
+#[tauri::command]
+async fn list_custom_providers(s: State<'_, AppState>) -> Result<Value, String> {
+    scmd_r(
+        &s,
+        &serde_json::json!({"type":"list_custom_providers","id":"lcp"}),
+        std::time::Duration::from_secs(10),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn save_custom_provider(
+    provider: Value,
+    s: State<'_, AppState>,
+) -> Result<Value, String> {
+    // initAgent() reloads the agent from disk; allow the same 30s budget as
+    // save_auth_key. Validation errors come back via the sidecar `error`
+    // channel and surface as Err here.
+    scmd_r(
+        &s,
+        &serde_json::json!({"type":"save_custom_provider","id":"scp","provider":provider}),
+        std::time::Duration::from_secs(30),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn delete_custom_provider(
+    provider_id: String,
+    s: State<'_, AppState>,
+) -> Result<Value, String> {
+    scmd_r(
+        &s,
+        &serde_json::json!({"type":"delete_custom_provider","id":"dcp","providerId":provider_id}),
+        std::time::Duration::from_secs(30),
+    )
+    .await
+}
+
 #[tauri::command]
 async fn start_oauth(provider: String, s: State<'_, AppState>) -> Result<Value, String> {
     // OAuth involves the user completing a browser flow — generous timeout.
@@ -1906,6 +1951,9 @@ pub fn run() {
             send_ui_response,
             set_active_model,
             save_auth_key,
+            list_custom_providers,
+            save_custom_provider,
+            delete_custom_provider,
             start_oauth,
             cancel_oauth,
             logout_provider,

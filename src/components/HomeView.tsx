@@ -15,6 +15,7 @@ import { ArrowLeft, ChevronDown, ChevronUp, Eye, EyeOff, Lock, Zap } from "lucid
 import { useCallback, useEffect, useState } from "react";
 import { ClaudeIcon, GitHubIcon, OpenAIIcon } from "./BrandIcons";
 import { ProviderAuthSection } from "./ProviderAuthSection";
+import { CustomProviderRow } from "./settings/CustomProviderRow";
 
 interface OnboardingProps {
 	onComplete: (provider: string, apiKey: string) => Promise<void>;
@@ -340,6 +341,11 @@ export function HomeView({
 							)}
 						</button>
 					</div>
+
+					{/* ═══ Custom Local LLM (issue #207) ═══ */}
+					<CustomProviderRow
+						onChange={() => window.dispatchEvent(new CustomEvent("config-reload"))}
+					/>
 
 					{/* ═══ Divider ═══ */}
 					<div className="flex items-center gap-3">

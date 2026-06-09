@@ -32,3 +32,29 @@ export type AuthStatus = {
 	 */
 	apiKeyProviders?: ApiKeyProvider[];
 };
+
+/**
+ * User-added OpenAI-compatible endpoint (issue #207).
+ *
+ * Returned by the sidecar's `list_custom_providers` command. The raw API
+ * key is NEVER round-tripped to the frontend; `apiKeyHint` shows only the
+ * last 4 chars when one is configured.
+ */
+export type CustomProvider = {
+	id: string;
+	name: string;
+	baseUrl: string;
+	hasApiKey: boolean;
+	apiKeyHint?: string;
+	models: { id: string; name: string }[];
+};
+
+/** Input shape accepted by `save_custom_provider`. */
+export type SaveCustomProviderInput = {
+	id: string;
+	name: string;
+	baseUrl: string;
+	/** Optional. Empty / undefined → sidecar stores a sentinel placeholder. */
+	apiKey?: string;
+	models: { id: string; name?: string; contextWindow?: number; maxTokens?: number }[];
+};

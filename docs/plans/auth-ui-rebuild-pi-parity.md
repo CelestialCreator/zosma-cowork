@@ -22,8 +22,10 @@ already generic; only the frontend hardcoded the id.
 ## Non-goals
 
 - Adding new providers to pi-mono (pi-ai already ships 32).
-- Custom OpenAI-compat base-URL UI (already covered by `models.json`
-  custom-model definitions in pi-mono; future enhancement, not blocking #150).
+- ~~Custom OpenAI-compat base-URL UI (already covered by `models.json`
+  custom-model definitions in pi-mono; future enhancement, not blocking #150).~~
+  **Done in #207** — see `src/components/settings/CustomProviderRow.tsx`
+  and `agent-sidecar/src/custom-providers.ts`.
 - Identity/system-prompt changes (issue #112 already handled).
 
 ## UX (mirrors `pi-coding-agent`'s login-dialog)
@@ -197,8 +199,8 @@ Add SVGs lazily as needed; missing icons render the generic key glyph.
 
 ## Out of scope for #150 (track separately)
 
-- Custom OpenAI-compatible base URL input (e.g. self-hosted vLLM, LM Studio,
+- ~~Custom OpenAI-compatible base URL input (e.g. self-hosted vLLM, LM Studio,
   Together, etc.). pi-mono already supports this via `models.json` custom
-  model definitions; UI can come in a follow-up.
+  model definitions; UI can come in a follow-up.~~ **Shipped in #207.**
 - `models.json` editor inside settings.
 - Multi-account-per-provider (pi-mono treats one credential per provider id).
