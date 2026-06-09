@@ -799,10 +799,7 @@ async fn list_custom_providers(s: State<'_, AppState>) -> Result<Value, String> 
 }
 
 #[tauri::command]
-async fn save_custom_provider(
-    provider: Value,
-    s: State<'_, AppState>,
-) -> Result<Value, String> {
+async fn save_custom_provider(provider: Value, s: State<'_, AppState>) -> Result<Value, String> {
     // initAgent() reloads the agent from disk; allow the same 30s budget as
     // save_auth_key. Validation errors come back via the sidecar `error`
     // channel and surface as Err here.
