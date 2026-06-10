@@ -1369,7 +1369,24 @@ async function main() {
 			systemPromptOverride: () => ZOSMA_SYSTEM_PROMPT,
 			appendSystemPromptOverride: () => [],
 		});
-		await loader.reload();
+		// Resource resolution shells out to pi's package manager (e.g.
+		// `npm root -g`) to locate npm-sourced skills/prompts/themes configured
+		// in ~/.pi/agent/settings.json. A packaged GUI sidecar has no `npm` on
+		// PATH (GUI apps don't inherit the shell PATH, and the bundle ships no
+		// npm), so resolve() can throw `spawnSync npm ENOENT`. That must NOT
+		// take down agent init — and with it `init`, `reload`, and
+		// `save_custom_provider` (#207) — so degrade gracefully. The model
+		// registry and the chat request path don't depend on the resource
+		// loader, so custom local models still work; we only lose npm-sourced
+		// resources, which can't load without npm anyway.
+		try {
+			await loader.reload();
+		} catch (err) {
+			log(
+				"resource reload failed (continuing without npm-sourced resources): %s",
+				err instanceof Error ? err.message : String(err),
+			);
+		}
 		// Surface any extension-load errors — they're silently collected by
 		// the loader otherwise, which made the pi-anthropic-messages bridge
 		// look "installed" while never actually activating.
@@ -2212,8 +2229,22 @@ async function main() {
 					}
 					log("Saved custom provider %s", cmd.provider.id);
 					// Reload the agent so ModelRegistry picks up the new provider
-					// without an app restart.
-					await initAgent(zosmaDir);
+					// without an app restart. The provider is already persisted to
+					// models.json above, so a reload failure (e.g. resource
+					// resolution shelling out to a missing npm) must not fail the
+					// save — the model appears on the next init regardless. initAgent
+					// already degrades gracefully on resource-reload errors; this
+					// catch is defense-in-depth against any other init fragility.
+					try {
+						await initAgent(zosmaDir);
+					} catch (err) {
+						log(
+							"save_custom_provider: agent reload failed (provider saved): %s",
+							err instanceof Error ? err.message : String(err),
+						);
+						send({ type: "result", id: cmd.id, data: { success: true } });
+						break;
+					}
 					// Surface ModelRegistry's own validation result so the UI can
 					// show a precise error if pi-mono rejected the merged config.
 					const regError = modelRegistry?.getError();
@@ -2229,7 +2260,16 @@ async function main() {
 					const modelsPath = join(zosmaAgentDir(zosmaDir), "models.json");
 					deleteCustomProvider(modelsPath, cmd.providerId);
 					log("Deleted custom provider %s", cmd.providerId);
-					await initAgent(zosmaDir);
+					// Provider already removed from models.json; a reload failure
+					// must not fail the delete (mirrors save_custom_provider).
+					try {
+						await initAgent(zosmaDir);
+					} catch (err) {
+						log(
+							"delete_custom_provider: agent reload failed (provider deleted): %s",
+							err instanceof Error ? err.message : String(err),
+						);
+					}
 					send({ type: "result", id: cmd.id, data: { success: true } });
 					break;
 				}
