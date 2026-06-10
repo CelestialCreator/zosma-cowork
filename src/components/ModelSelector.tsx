@@ -21,6 +21,13 @@ export function ModelSelector({ models, currentModelId, onSelect }: ModelSelecto
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+	// Max height of the whole dropdown box, clamped to the space actually
+	// available between the trigger and the viewport edge (see recalcPosition).
+	// The list inside flex-fills this and scrolls. Previously the list used a
+	// fixed 272px cap with no viewport clamp, so on smaller windows its last
+	// items rendered off-screen and — being a fixed-position scroll container —
+	// were unreachable.
+	const [boxMaxHeight, setBoxMaxHeight] = useState(320);
 	const triggerRef = useRef<HTMLButtonElement>(null);
 	const searchRef = useRef<HTMLInputElement>(null);
 
@@ -28,32 +35,40 @@ export function ModelSelector({ models, currentModelId, onSelect }: ModelSelecto
 	const label = current ? current.name : "Default";
 	const shortProvider = current ? providerShort(current.provider) : "";
 
-	// Position the portal dropdown; prefer above since input sits at the bottom
+	// Position the portal dropdown so the WHOLE box stays inside the viewport.
+	// We place it on whichever side of the trigger has more room (above is
+	// favoured on ties since the input sits at the bottom), cap the box height
+	// to that space, then compute an explicit `top` and clamp it into
+	// [MARGIN, vh - MARGIN - boxH]. The list inside flex-fills the box and
+	// scrolls, so every model — including the last — is reachable. Anchoring
+	// with a clamped `top` (not `bottom`) keeps it on-screen by construction;
+	// previously the box could run past the bottom edge, hiding the last models.
 	const recalcPosition = useCallback(() => {
 		if (!triggerRef.current) return;
 		const rect = triggerRef.current.getBoundingClientRect();
-		const DROPDOWN_H = 320;
+		const vh = window.innerHeight;
+		const vw = window.innerWidth;
 		const DROPDOWN_W = 264;
-		const placeAbove = rect.top > DROPDOWN_H || rect.top > window.innerHeight - rect.bottom;
-		const left = Math.min(rect.left, window.innerWidth - DROPDOWN_W - 8);
+		const GAP = 6; // gap between trigger and dropdown
+		const MARGIN = 12; // min gap from the viewport edge
+		const MIN_BOX = 160;
+		const MAX_BOX = 401; // search (~41) + ~360 of list
 
-		if (placeAbove) {
-			setDropdownStyle({
-				position: "fixed",
-				left,
-				bottom: window.innerHeight - rect.top + 6,
-				width: DROPDOWN_W,
-				zIndex: 9999,
-			});
-		} else {
-			setDropdownStyle({
-				position: "fixed",
-				left,
-				top: rect.bottom + 6,
-				width: DROPDOWN_W,
-				zIndex: 9999,
-			});
-		}
+		const spaceAbove = rect.top - GAP - MARGIN;
+		const spaceBelow = vh - rect.bottom - GAP - MARGIN;
+		const placeAbove = spaceAbove >= spaceBelow;
+		const avail = Math.max(spaceAbove, spaceBelow);
+		const boxH = Math.max(MIN_BOX, Math.min(MAX_BOX, avail));
+		setBoxMaxHeight(boxH);
+
+		// Preferred top for the chosen side, then clamp so the whole box stays
+		// within [MARGIN, vh - MARGIN]. boxH <= avail keeps it from needing to
+		// shrink; the clamp also guards odd rect / innerHeight readings.
+		const rawTop = placeAbove ? rect.top - GAP - boxH : rect.bottom + GAP;
+		const top = Math.max(MARGIN, Math.min(rawTop, vh - MARGIN - boxH));
+		const left = Math.min(rect.left, vw - DROPDOWN_W - 8);
+
+		setDropdownStyle({ position: "fixed", left, top, width: DROPDOWN_W, zIndex: 9999 });
 	}, []);
 
 	const handleOpen = useCallback(() => {
@@ -142,13 +157,14 @@ export function ModelSelector({ models, currentModelId, onSelect }: ModelSelecto
 							className="rounded-xl border overflow-hidden flex flex-col"
 							style={{
 								...dropdownStyle,
+								maxHeight: boxMaxHeight,
 								background: "hsl(var(--popover))",
 								borderColor: "hsl(var(--border))",
 								boxShadow: "0 16px 48px hsl(0 0% 0% / 0.35), 0 2px 8px hsl(0 0% 0% / 0.2)",
 							}}
 						>
 							{/* Search */}
-							<div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+							<div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
 								<Search className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60" />
 								<input
 									ref={searchRef}
@@ -167,7 +183,7 @@ export function ModelSelector({ models, currentModelId, onSelect }: ModelSelecto
 							</div>
 
 							{/* List */}
-							<div className="overflow-y-auto" style={{ maxHeight: 272 }}>
+							<div className="flex-1 min-h-0 overflow-y-auto">
 								{grouped.size === 0 ? (
 									<p className="px-3 py-6 text-center text-xs text-muted-foreground/50">
 										No models found
