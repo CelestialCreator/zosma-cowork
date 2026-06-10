@@ -5,6 +5,7 @@ import { StatusBar } from "@/components/StatusBar";
 import { SuggestedActions } from "@/components/SuggestedActions";
 import type { ToolPhase } from "@/hooks/usePiStream";
 import type { ChatMessage, ModelInfo } from "@/types";
+import type { Command } from "@/types/commands";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type StreamStateStatus = "idle" | "thinking" | "tool_call" | "responding" | "error";
@@ -26,6 +27,9 @@ interface ChatViewProps {
 	sessionKey?: string;
 	/** External draft (e.g. a prompt template) to load into the composer for editing. */
 	draft?: { text: string; nonce: number };
+	/** Slash-command registry + dispatch (epic #179). */
+	commands?: Command[];
+	onRunCommand?: (cmd: Command, args: string) => void;
 	/** Issue #201, PR 2 — queue a steering message on the active session. */
 	onSteer?: (text: string) => void;
 	/** Issue #201, PR 2 — queue a follow-up message on the active session. */
@@ -51,6 +55,8 @@ export function ChatView({
 	toolPhase,
 	sessionKey,
 	draft,
+	commands,
+	onRunCommand,
 	onSteer,
 	onFollowUp,
 	queue,
@@ -145,10 +151,7 @@ export function ChatView({
 						    Source of truth is the `queue` prop — NOT state.messages
 						    — so clearQueue() drops every bubble atomically. */}
 						{queuedItems.length > 0 && (
-							<div
-								data-testid="queued-section"
-								className="mx-auto max-w-3xl px-6 mt-1 mb-3"
-							>
+							<div data-testid="queued-section" className="mx-auto max-w-3xl px-6 mt-1 mb-3">
 								<div
 									data-testid="queued-thread"
 									className="ml-11 border-l-2 pl-4 py-1 space-y-1.5 text-sm"
@@ -212,6 +215,8 @@ export function ChatView({
 					currentModelId={currentModelId}
 					onModelSelect={onModelSelect}
 					draft={draft}
+					commands={commands}
+					onRunCommand={onRunCommand}
 				/>
 			</div>
 		</div>

@@ -132,7 +132,8 @@ function saveRegistry(zosmaDir: string, registry: ExtensionRegistry): void {
 // ─── Pi settings.json packages ──────────────────────────────────────
 
 function loadPiSettings(zosmaDir: string): { packages?: string[] } {
-	// Only read from zosma's own settings — do NOT mix with user's ~/.pi/ stuff
+	// pi's real settings.json (~/.pi/agent/settings.json) — its `packages`
+	// array is the source of truth for npm/git/local extensions pi manages.
 	const fp = settingsFile(zosmaDir);
 	if (!existsSync(fp)) return {};
 	try {
@@ -140,6 +141,68 @@ function loadPiSettings(zosmaDir: string): { packages?: string[] } {
 	} catch {
 		return {};
 	}
+}
+
+/** Where pi physically installs npm: packages (handles scoped names). */
+function npmModulePath(pkgName: string): string {
+	return join(piAgentDir(), "npm", "node_modules", pkgName);
+}
+
+/**
+ * True when pi already owns this npm package — either declared in its
+ * settings.json `packages` array (as `npm:<name>` or a bare `<name>`) or
+ * already physically installed under ~/.pi/agent/npm/node_modules.
+ *
+ * When pi manages it, Cowork must NOT extract a second drop-in copy into
+ * extensions/: two copies register the same tools and pi refuses to load the
+ * duplicate (the pi-web-access "Tool X conflicts" startup failure).
+ */
+function piManagesPackage(zosmaDir: string, pkgName: string): boolean {
+	const settings = loadPiSettings(zosmaDir);
+	const inPackages = (settings.packages ?? []).some(
+		(p) => p === `npm:${pkgName}` || p === pkgName,
+	);
+	return inPackages || existsSync(npmModulePath(pkgName));
+}
+
+/**
+ * Ensure `npm:<pkgName>` is present in pi's settings.json `packages` so pi
+ * remains the single source of truth for the npm-managed extension. Preserves
+ * every other settings key. No-op when already declared.
+ */
+function addPiPackage(zosmaDir: string, pkgName: string): void {
+	const fp = settingsFile(zosmaDir);
+	let settings: { packages?: string[] } & Record<string, unknown> = {};
+	if (existsSync(fp)) {
+		try {
+			settings = JSON.parse(readFileSync(fp, "utf-8"));
+		} catch {
+			settings = {};
+		}
+	}
+	const entry = `npm:${pkgName}`;
+	const packages = Array.isArray(settings.packages) ? settings.packages : [];
+	if (!packages.includes(entry) && !packages.includes(pkgName)) {
+		packages.push(entry);
+		settings.packages = packages;
+		ensureDir(piAgentDir());
+		writeFileSync(fp, JSON.stringify(settings, null, 2), "utf-8");
+	}
+}
+
+/**
+ * Flatten an extension id / package source to the on-disk "safe name" used for
+ * drop-in directories — so registry id "pi-web-access" and pi package
+ * "npm:pi-web-access" are recognised as the SAME extension and listed once.
+ * Mirrors the safeName logic in installFromNpm().
+ */
+function normalizePkgId(id: string): string {
+	return id
+		.replace(/^npm:/, "")
+		.replace(/^git:/, "")
+		.replace(/^@/, "")
+		.replace(/\//g, "-")
+		.replace(/[^a-z0-9._-]/gi, "_");
 }
 
 // ─── Discover extensions from disk ──────────────────────────────────
@@ -155,10 +218,15 @@ export function discoverExtensions(zosmaDir: string): ZemExtension[] {
 	const extDir = extensionsDir(zosmaDir);
 	const result: ZemExtension[] = [];
 	const seen = new Set<string>();
+	// Dedupe across registry / loose dirs / pi packages by the on-disk safe
+	// name, so the same extension is never listed twice (e.g. registry
+	// "pi-web-access" vs pi package "npm:pi-web-access").
+	const seenNorm = new Set<string>();
 
 	// 1. Discover registry-managed extensions
 	for (const [id, entry] of Object.entries(registry.extensions)) {
 		seen.add(id);
+		seenNorm.add(normalizePkgId(id));
 		const installPath = join(extDir, id);
 		const meta = readExtensionMeta(installPath);
 		result.push({
@@ -185,8 +253,8 @@ export function discoverExtensions(zosmaDir: string): ZemExtension[] {
 		for (const entry of readdirSync(extDir)) {
 			const fullPath = join(extDir, entry);
 			if (entry.startsWith(".")) continue;
-			// Skip if already in registry
-			if (seen.has(entry)) continue;
+			// Skip if already in registry (by raw id or normalized safe name)
+			if (seen.has(entry) || seenNorm.has(normalizePkgId(entry))) continue;
 
 			const meta = readExtensionMeta(fullPath);
 			const stat = statSync(fullPath);
@@ -197,6 +265,7 @@ export function discoverExtensions(zosmaDir: string): ZemExtension[] {
 			if (!isFile && !isDir) continue;
 
 			seen.add(entry);
+			seenNorm.add(normalizePkgId(entry));
 			result.push({
 				id: entry,
 				name: meta?.name || entry.replace(/\.ts$/, ""),
@@ -221,8 +290,9 @@ export function discoverExtensions(zosmaDir: string): ZemExtension[] {
 	const settings = loadPiSettings(zosmaDir);
 	if (settings.packages) {
 		for (const pkg of settings.packages) {
-			if (seen.has(pkg)) continue;
+			if (seen.has(pkg) || seenNorm.has(normalizePkgId(pkg))) continue;
 			seen.add(pkg);
+			seenNorm.add(normalizePkgId(pkg));
 			// These are managed by pi, we just report them
 			result.push({
 				id: pkg,
@@ -363,6 +433,33 @@ function installFromNpm(zosmaDir: string, extDir: string, source: ExtensionSourc
 	if (!pkgName || pkgName === "@" || pkgName.endsWith("/") || pkgName === "/") {
 		throw new Error(
 			`Invalid package name: "${pkgName}". Please provide a full package name, e.g., "@zosmaai/slide-generator" or "npm:some-package"`,
+		);
+	}
+
+	// pi-first: if pi already manages this package — declared in its
+	// settings.json `packages` or already installed under ~/.pi/agent/npm — do
+	// NOT extract a second drop-in into extensions/. Two copies register the
+	// same tools and pi refuses to load the duplicate (the pi-web-access
+	// "Tool X conflicts" startup failure). Defer to pi's copy and self-heal any
+	// stale drop-in a previous buggy install may have left behind.
+	if (piManagesPackage(zosmaDir, pkgName)) {
+		if (existsSync(targetDir)) {
+			rmSync(targetDir, { recursive: true, force: true });
+		}
+		addPiPackage(zosmaDir, pkgName);
+		const registry = loadRegistry(zosmaDir);
+		registry.extensions[safeName] = {
+			enabled: registry.extensions[safeName]?.enabled ?? true,
+			installedAt: registry.extensions[safeName]?.installedAt ?? new Date().toISOString(),
+			source: { type: "npm", value: source.value, ref: source.ref },
+		};
+		saveRegistry(zosmaDir, registry);
+		const piPath = npmModulePath(pkgName);
+		return buildExtensionEntry(
+			zosmaDir,
+			safeName,
+			existsSync(piPath) ? piPath : targetDir,
+			registry,
 		);
 	}
 
