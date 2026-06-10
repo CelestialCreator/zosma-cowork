@@ -139,10 +139,23 @@ function validateInput(input: SaveCustomProviderInput): {
 export function saveCustomProvider(modelsPath: string, input: SaveCustomProviderInput): void {
 	const v = validateInput(input);
 	const config = readConfig(modelsPath);
+	// Edit flow: the raw API key never round-trips to the UI, so a blank key
+	// field (→ NO_AUTH_SENTINEL here) on an *existing* provider means "keep the
+	// current key", not "clear it". Preserve a previously stored real key so
+	// editing the base URL or model id doesn't silently drop auth. To switch a
+	// keyed provider back to keyless, delete and re-create it.
+	let apiKey = v.apiKey;
+	if (apiKey === NO_AUTH_SENTINEL) {
+		const prev = config.providers[v.id];
+		const prevKey = prev && typeof prev.apiKey === "string" ? prev.apiKey : "";
+		if (prevKey && prevKey !== NO_AUTH_SENTINEL) {
+			apiKey = prevKey;
+		}
+	}
 	config.providers[v.id] = {
 		name: v.name,
 		baseUrl: v.baseUrl,
-		apiKey: v.apiKey,
+		apiKey,
 		api: "openai-completions",
 		models: v.models,
 	};

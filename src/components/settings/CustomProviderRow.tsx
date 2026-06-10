@@ -61,6 +61,23 @@ export function CustomProviderRow({ onChange }: Props) {
 		refresh();
 	}, [refresh]);
 
+	// Single-slot today: a save always targets PROVIDER_ID, so when one is
+	// already configured the form is an *edit* of it, not a second endpoint.
+	const editingExisting = existing.length > 0;
+	const existingHasKey = existing[0]?.hasApiKey ?? false;
+
+	// Load a saved provider's values into the form so the user can tweak it
+	// instead of re-typing from scratch. The raw API key never round-trips
+	// back, so we leave that field blank — blank means "keep the current key"
+	// (the sidecar preserves it; see save_custom_provider).
+	const startEdit = useCallback((p: CustomProvider) => {
+		setBaseUrl(p.baseUrl);
+		setModelId(p.models[0]?.id ?? "");
+		setApiKey("");
+		setError(null);
+		setExpanded(true);
+	}, []);
+
 	const canSave = baseUrl.trim().length > 0 && modelId.trim().length > 0 && !saving;
 
 	const handleSave = useCallback(async () => {
@@ -117,7 +134,14 @@ export function CustomProviderRow({ onChange }: Props) {
 			<button
 				type="button"
 				onClick={() => {
-					setExpanded((v) => !v);
+					const next = !expanded;
+					// Opening with a provider already saved → prefill it for editing
+					// (unless the user already has unsaved input in the form).
+					if (next && editingExisting && !baseUrl && !modelId) {
+						startEdit(existing[0]);
+					} else {
+						setExpanded(next);
+					}
 					setError(null);
 				}}
 				className="w-full flex items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-muted/20"
@@ -244,7 +268,11 @@ export function CustomProviderRow({ onChange }: Props) {
 									type={showKey ? "text" : "password"}
 									value={apiKey}
 									onChange={(e) => setApiKey(e.target.value)}
-									placeholder="leave blank for Ollama / LM Studio"
+									placeholder={
+										editingExisting && existingHasKey
+											? "leave blank to keep current key"
+											: "leave blank for Ollama / LM Studio"
+									}
 									className="w-full text-[12px] font-mono px-3 py-2 pr-8 rounded-md border focus:outline-none transition-colors"
 									style={{
 										background: "hsl(var(--background))",
@@ -280,6 +308,8 @@ export function CustomProviderRow({ onChange }: Props) {
 										<Loader2 className="w-3.5 h-3.5 animate-spin" />
 									) : saved ? (
 										<Check className="w-3.5 h-3.5" />
+									) : editingExisting ? (
+										"Update"
 									) : (
 										"Save"
 									)}

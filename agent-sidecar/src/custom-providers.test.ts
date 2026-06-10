@@ -128,6 +128,32 @@ describe("custom-providers", () => {
 		expect(config.providers["custom-local-llm"].apiKey).toBe("no-auth");
 	});
 
+	// Edit flow: the raw key never round-trips to the UI, so re-saving with a
+	// blank key must KEEP the previously stored key, not wipe it to the sentinel.
+	it("preserves an existing real API key when re-saved with a blank key (edit)", () => {
+		saveCustomProvider(modelsPath, { ...VALID_INPUT, apiKey: "sk-keep-me" });
+		// Edit the model id, leave the key field blank.
+		saveCustomProvider(modelsPath, {
+			...VALID_INPUT,
+			apiKey: undefined,
+			models: [{ id: "phi-3-mini" }],
+		});
+
+		const config = JSON.parse(readFileSync(modelsPath, "utf-8"));
+		expect(config.providers["custom-local-llm"].apiKey).toBe("sk-keep-me");
+		expect(config.providers["custom-local-llm"].models).toEqual([
+			{ id: "phi-3-mini", name: "phi-3-mini" },
+		]);
+	});
+
+	it("does not invent a key when a keyless provider is re-saved blank (stays sentinel)", () => {
+		saveCustomProvider(modelsPath, VALID_INPUT);
+		saveCustomProvider(modelsPath, { ...VALID_INPUT, baseUrl: "http://localhost:9999/v1" });
+
+		const config = JSON.parse(readFileSync(modelsPath, "utf-8"));
+		expect(config.providers["custom-local-llm"].apiKey).toBe("no-auth");
+	});
+
 	// ── validation ─────────────────────────────────────────────────────
 
 	it("rejects an empty id", () => {
