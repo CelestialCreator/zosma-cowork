@@ -9,7 +9,7 @@
 // triggers it.
 
 import { execSync } from "node:child_process";
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -45,6 +45,25 @@ code = code.replace(
 	`var pkg = ${inlinedPkg};`,
 );
 writeFileSync(bundlePath, code, "utf-8");
+
+// Inject the Antigravity OAuth client secret. It is NOT committed to source
+// (GitHub secret-scanning would block it, and it shouldn't live in the repo) —
+// constants.ts ships a placeholder. Sourced here from $ANTIGRAVITY_CLIENT_SECRET
+// or the gitignored agent-sidecar/antigravity-client-secret file, and baked into
+// the bundle. If unavailable, the placeholder stays and Gemini (Google) sign-in
+// fails with a clear message instead of breaking the build.
+console.log("[prebuild] Injecting Antigravity client secret...");
+const secretFile = join(sidecarDir, "antigravity-client-secret");
+const antigravitySecret =
+	(process.env.ANTIGRAVITY_CLIENT_SECRET || "").trim() ||
+	(existsSync(secretFile) ? readFileSync(secretFile, "utf-8").trim() : "");
+if (antigravitySecret) {
+	code = code.split("__ANTIGRAVITY_CLIENT_SECRET__").join(antigravitySecret);
+	writeFileSync(bundlePath, code, "utf-8");
+	console.log("[prebuild]   client secret injected");
+} else {
+	console.warn("[prebuild]   no ANTIGRAVITY_CLIENT_SECRET — Gemini (Google) sign-in disabled");
+}
 
 // Copy bundled file into src-tauri/ for Tauri resource bundling
 const targetDir = join(root, "src-tauri", "agent-sidecar");

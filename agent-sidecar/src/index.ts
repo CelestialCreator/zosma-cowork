@@ -105,6 +105,11 @@ import {
 // build the extension `virtualModules` map — see #147. This supersedes the
 // earlier #154 note that pi-agent-core was intentionally undeclared.)
 import { loginOpenAICodex } from "@earendil-works/pi-ai/oauth";
+// Registers the "Sign in with Google → Gemini" OAuth provider (Antigravity /
+// Code Assist backend) into pi's public runtime registry — no pi edits. Makes
+// it behave like the other subscription logins via the existing start_oauth /
+// get_auth_status commands. See gemini-antigravity/ for the ToS-risk caveat.
+import { registerGeminiAntigravity } from "./gemini-antigravity/index.js";
 import {
 	discoverExtensions,
 	installExtension,
@@ -1267,6 +1272,11 @@ function saveSettings(zosmaDir: string, settings: Record<string, unknown>): void
 
 async function main() {
 	log("Sidecar starting (pid=%s)", process.pid);
+
+	// Register the Gemini (Google) OAuth provider before any auth command or
+	// ModelRegistry build, so start_oauth/get_auth_status see it and its models
+	// inject on sign-in. Idempotent.
+	registerGeminiAntigravity();
 
 	// Defaults
 	let zosmaDir = defaultZosmaDir();
