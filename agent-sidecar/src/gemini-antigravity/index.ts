@@ -50,7 +50,7 @@ const provider: OAuthProviderInterface = {
 			signal: callbacks.signal,
 		});
 		callbacks.onProgress?.("Finding your Gemini Code Assist project…");
-		const projectId = await discoverProject(tokens.accessToken);
+		const projectId = await discoverProject(tokens.accessToken, callbacks.onProgress);
 		const email = await getUserEmail(tokens.accessToken);
 		const creds: GeminiCredentials = {
 			access: tokens.accessToken,

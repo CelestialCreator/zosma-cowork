@@ -102,6 +102,9 @@ export interface GeminiModelDef {
 export const GEMINI_MODELS: GeminiModelDef[] = [
 	{ id: "gemini-2.5-pro", upstream: "gemini-2.5-pro", name: "Gemini 2.5 Pro", reasoning: true, input: ["text", "image"], contextWindow: 1_048_576, maxTokens: 65_536 },
 	{ id: "gemini-2.5-flash", upstream: "gemini-2.5-flash", name: "Gemini 2.5 Flash", reasoning: true, input: ["text", "image"], contextWindow: 1_048_576, maxTokens: 65_536 },
-	{ id: "gemini-3-pro", upstream: "gemini-pro-agent", name: "Gemini 3 Pro", reasoning: true, input: ["text", "image"], contextWindow: 1_048_576, maxTokens: 65_536 },
-	{ id: "gemini-3-flash", upstream: "gemini-3-flash-agent", name: "Gemini 3 Flash", reasoning: true, input: ["text", "image"], contextWindow: 1_048_576, maxTokens: 65_536 },
+	// The backend's latest pro/flash. Display names follow Antigravity's
+	// branding (3.1 Pro / 3.5 Flash); `upstream` is the name the inference
+	// endpoint accepts (the "-agent" ids).
+	{ id: "gemini-3.1-pro", upstream: "gemini-pro-agent", name: "Gemini 3.1 Pro", reasoning: true, input: ["text", "image"], contextWindow: 1_048_576, maxTokens: 65_536 },
+	{ id: "gemini-3.5-flash", upstream: "gemini-3-flash-agent", name: "Gemini 3.5 Flash", reasoning: true, input: ["text", "image"], contextWindow: 1_048_576, maxTokens: 65_536 },
 ];

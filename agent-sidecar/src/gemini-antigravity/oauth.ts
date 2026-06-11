@@ -207,36 +207,87 @@ export async function refreshAccessToken(
 	return { accessToken: data.access_token, expiresIn: data.expires_in ?? 3600 };
 }
 
+const CODE_ASSIST_METADATA = {
+	ideType: "IDE_UNSPECIFIED",
+	platform: "PLATFORM_UNSPECIFIED",
+	pluginType: "GEMINI",
+};
+const FREE_TIER_ID = "free-tier";
+
+function projectIdOf(p: unknown): string | undefined {
+	if (typeof p === "string" && p) return p;
+	if (p && typeof p === "object" && typeof (p as { id?: unknown }).id === "string") {
+		return (p as { id: string }).id;
+	}
+	return undefined;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 /**
- * Discover the Cloud Code companion projectId for this account via
- * `loadCodeAssist`. New accounts may need one message in the Antigravity IDE
- * first — the thrown message says so.
+ * Resolve the Cloud Code companion projectId for this account.
+ *
+ * Calls `loadCodeAssist`; if the account has no project yet (brand-new, never
+ * used Antigravity/Code Assist), it auto-provisions one via `onboardUser` — the
+ * default/free tier uses a Google-managed project — and polls the returned
+ * long-running operation until ready. This mirrors the official gemini-cli
+ * setup flow, so the user does NOT need to open the Antigravity IDE first.
  */
-export async function discoverProject(accessToken: string): Promise<string> {
+export async function discoverProject(
+	accessToken: string,
+	onProgress?: (msg: string) => void,
+): Promise<string> {
 	const headers = {
 		Authorization: `Bearer ${accessToken}`,
 		"Content-Type": "application/json",
 		"User-Agent": "google-api-nodejs-client/9.15.1",
 	};
-	const body = JSON.stringify({
-		metadata: { ideType: "IDE_UNSPECIFIED", platform: "PLATFORM_UNSPECIFIED", pluginType: "GEMINI" },
-	});
+	const postJson = async (url: string, payload: unknown): Promise<any | undefined> => {
+		const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload) });
+		return res.ok ? res.json() : undefined;
+	};
+
+	let lastErr = "";
 	for (const endpoint of LOAD_CODE_ASSIST_ENDPOINTS) {
 		try {
-			const res = await fetch(`${endpoint}/v1internal:loadCodeAssist`, { method: "POST", headers, body });
-			if (!res.ok) continue;
-			const data = (await res.json()) as {
-				cloudaicompanionProject?: string | { id?: string };
+			const loadRes = await postJson(`${endpoint}/v1internal:loadCodeAssist`, {
+				metadata: CODE_ASSIST_METADATA,
+			});
+			if (!loadRes) continue;
+
+			const existing = projectIdOf(loadRes.cloudaicompanionProject);
+			if (existing) return existing;
+
+			// No project yet → onboard (auto-provision). Pick the default tier;
+			// fall back to the free tier (managed project, no GCP project needed).
+			onProgress?.("Setting up your Gemini access (one-time)…");
+			const tier =
+				(loadRes.allowedTiers as Array<{ id?: string; isDefault?: boolean }> | undefined)?.find(
+					(t) => t.isDefault,
+				) ?? { id: FREE_TIER_ID };
+			const onboardReq = {
+				tierId: tier.id ?? FREE_TIER_ID,
+				// Free/managed tier rejects a project id; we have none to offer anyway.
+				cloudaicompanionProject: undefined,
+				metadata: CODE_ASSIST_METADATA,
 			};
-			const p = data.cloudaicompanionProject;
-			if (typeof p === "string" && p) return p;
-			if (p && typeof p === "object" && p.id) return p.id;
-		} catch {
-			// try next endpoint
+
+			let lro = await postJson(`${endpoint}/v1internal:onboardUser`, onboardReq);
+			// Poll the long-running operation (GET) until done (~cap 90s).
+			for (let i = 0; lro && !lro.done && lro.name && i < 30; i++) {
+				await sleep(3000);
+				const res = await fetch(`${endpoint}/v1internal/${lro.name}`, { headers });
+				lro = res.ok ? await res.json() : lro;
+			}
+			const provisioned = projectIdOf(lro?.response?.cloudaicompanionProject);
+			if (provisioned) return provisioned;
+			lastErr = "onboarding completed without returning a project";
+		} catch (err) {
+			lastErr = err instanceof Error ? err.message : String(err);
 		}
 	}
 	throw new Error(
-		"Could not find your Gemini Code Assist project. If this is a new account, open it once in the Antigravity IDE, send a message, then sign in again here.",
+		`Could not set up Gemini Code Assist for this account${lastErr ? ` (${lastErr})` : ""}. Make sure the account is eligible for Gemini, then try signing in again.`,
 	);
 }
 

@@ -1,5 +1,6 @@
 import type { ModelInfo } from "@/types";
 import { invoke } from "@tauri-apps/api/core";
+import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export function useProviders() {
@@ -31,7 +32,18 @@ export function useProviders() {
 			refreshRef.current();
 		}
 		window.addEventListener("config-reload", handleReload);
-		return () => window.removeEventListener("config-reload", handleReload);
+		// Also refresh on the sidecar's "ready" event: it fires after every
+		// initAgent (sign-in, provider onboarding, reload) with the rebuilt model
+		// list, so the picker stays in sync even when a config-reload doesn't fire
+		// (e.g. an OAuth login whose completion path didn't dispatch it).
+		let unlisten: UnlistenFn | undefined;
+		listen("ready", () => refreshRef.current()).then((u) => {
+			unlisten = u;
+		});
+		return () => {
+			window.removeEventListener("config-reload", handleReload);
+			unlisten?.();
+		};
 	}, []);
 
 	const setModel = useCallback(async (provider: string, modelId: string) => {
