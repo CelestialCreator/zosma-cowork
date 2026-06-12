@@ -4,7 +4,7 @@ import { type UnlistenFn, listen } from "@tauri-apps/api/event";
 import { Check, ChevronDown, Eye, EyeOff, Key, Loader2 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ClaudeIcon, GitHubIcon, OpenAIIcon } from "../BrandIcons";
+import { ClaudeIcon, GeminiIcon, GitHubIcon, OpenAIIcon } from "../BrandIcons";
 import { CustomProviderRow } from "./CustomProviderRow";
 
 // onShowKeyEntry kept for API compat but no longer used — key entry is inline
@@ -17,6 +17,7 @@ const PROVIDERS_CONFIG = [
 	{ id: "anthropic", label: "Claude Pro/Max", icon: ClaudeIcon },
 	{ id: "github-copilot", label: "GitHub Copilot", icon: GitHubIcon },
 	{ id: "openai-codex", label: "ChatGPT", icon: OpenAIIcon },
+	{ id: "google-antigravity", label: "Gemini (Google)", icon: GeminiIcon },
 ];
 
 const ease = [0.16, 1, 0.3, 1] as const;

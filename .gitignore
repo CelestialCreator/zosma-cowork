@@ -26,3 +26,6 @@ pnpm-lock.yaml
 .llm-wiki/
 .obsidian/
 .pi/
+
+# Antigravity OAuth client secret (injected into the sidecar bundle at build time; not committed)
+agent-sidecar/antigravity-client-secret

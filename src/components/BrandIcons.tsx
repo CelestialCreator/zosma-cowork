@@ -63,3 +63,23 @@ export function OpenAIIcon({ className }: { className?: string }) {
 		</svg>
 	);
 }
+
+export function GeminiIcon({ className }: { className?: string }) {
+	return (
+		<svg
+			role="img"
+			viewBox="0 0 24 24"
+			fill="none"
+			className={className}
+			aria-label="Gemini"
+			xmlns="http://www.w3.org/2000/svg"
+		>
+			{/* Four-point spark — Gemini brand feel */}
+			<path
+				d="M12 2c.4 5.1 4.9 9.6 10 10-5.1.4-9.6 4.9-10 10-.4-5.1-4.9-9.6-10-10 5.1-.4 9.6-4.9 10-10z"
+				fill="currentColor"
+				opacity="0.9"
+			/>
+		</svg>
+	);
+}
