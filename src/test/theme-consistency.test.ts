@@ -60,4 +60,18 @@ describe("preserved features", () => {
 	it("keeps the font-size (zoom) control on the root container", () => {
 		expect(appTsx).toContain("zoom: fontScale");
 	});
+
+	// Regression: CSS `zoom` multiplies the PAINTED height, so a bare `h-screen`
+	// (100vh) root becomes taller than the viewport at Large/Extra-Large font,
+	// making <body> scrollable and clipping the sidebar top-chrome (New button)
+	// off the top on focus-scroll. The height must be zoom-compensated so the
+	// painted height stays exactly one viewport.
+	it("zoom-compensates the root height so the New-chat chrome can't be clipped", () => {
+		expect(appTsx).toContain("height: `calc(100vh / ${fontScale})`");
+		// The root container must NOT use a bare 100vh height alongside zoom.
+		const rootLine = appTsx
+			.split("\n")
+			.find((l) => l.includes("zoom: fontScale") && l.includes("height:"));
+		expect(rootLine).toBeTruthy();
+	});
 });
