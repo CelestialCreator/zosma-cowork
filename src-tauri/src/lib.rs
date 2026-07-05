@@ -2288,13 +2288,25 @@ async fn open_url(url: String) -> Result<(), String> {
     // the rejection.
     #[cfg(target_os = "windows")]
     let result = {
-        // `cmd /c start "" <url>` — the empty quoted string is required
-        // because `start` interprets the first quoted arg as the window
-        // title. CREATE_NO_WINDOW (0x08000000) prevents a brief flash of
-        // a console window when the GUI app shells out.
+        // `cmd /c start "" "<url>"`. Two things are load-bearing here:
+        //   1. The empty `""` is the window title `start` expects as its first
+        //      quoted arg.
+        //   2. The URL MUST be wrapped in double quotes, appended via `raw_arg`
+        //      so Rust doesn't re-escape it. Without the quotes, cmd.exe treats
+        //      `&` as a command separator and truncates the URL at the FIRST
+        //      `&` — so an OAuth URL like
+        //        …/auth?client_id=X&redirect_uri=…&response_type=code&scope=…
+        //      collapses to just `client_id=X`, and Google rejects it with
+        //      "Access blocked: Authorisation error — Required parameter is
+        //      missing: response_type" (Error 400: invalid_request). Quoting
+        //      also stops `%` in percent-encoded params being read as a cmd
+        //      variable reference. This mirrors how the `open` crate (used by
+        //      tauri-plugin-shell) opens URLs on Windows.
+        // CREATE_NO_WINDOW (0x08000000) prevents a brief console-window flash.
         use std::os::windows::process::CommandExt;
         std::process::Command::new("cmd")
-            .args(["/c", "start", "", &url])
+            .args(["/c", "start", ""])
+            .raw_arg(format!("\"{url}\""))
             .creation_flags(0x0800_0000)
             .status()
     };
