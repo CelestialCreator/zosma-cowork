@@ -431,7 +431,10 @@ async fn spawn_sidecar(
             if npm_cli.exists() {
                 let npm_cli = strip_unc_prefix(npm_cli);
                 log::info!("Bundled npm: {:?}", npm_cli);
-                c.env("ZOSMA_BUNDLED_NPM_CLI", npm_cli.to_string_lossy().to_string());
+                c.env(
+                    "ZOSMA_BUNDLED_NPM_CLI",
+                    npm_cli.to_string_lossy().to_string(),
+                );
                 // Prepend the bundled Node dir to PATH so npm lifecycle scripts
                 // (e.g. protobufjs postinstall → `node scripts/postinstall`) can
                 // resolve `node` on a machine with no system Node/npm. Without
