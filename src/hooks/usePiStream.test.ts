@@ -435,3 +435,66 @@ describe("streamReducer — mid-stream error finalization", () => {
 		expect(s.messages.filter((m) => m.role === "assistant")).toHaveLength(0);
 	});
 });
+
+/**
+ * Orphaned tool-call reconciliation — issue #329.
+ *
+ * When the opencode-go bridge truncates the provider stream mid tool-call
+ * batch, the turn finalizes (STREAM_COMPLETE) or is aborted (ABORT_STREAM)
+ * while some tool calls are still `status: "running"` — they were announced
+ * but never dispatched and never got a result. Committing them as-is leaves
+ * them stuck "running" forever in the transcript (the idx-10 smoking gun).
+ * The reducer must mark any still-running tool call as `error` before the
+ * bubble is committed.
+ */
+describe("streamReducer — orphaned tool-call reconciliation (#329)", () => {
+	const orphanState = (): StreamState =>
+		run([
+			{ type: "START_STREAM", prompt: "why do I get this error" },
+			{ type: "TURN_RESET" },
+			{ type: "TEXT_DELTA", delta: "Let me inspect the binaries." },
+			{ type: "TOOL_CALL_START", toolCall: tool("call_1", "bash") },
+			{ type: "TOOL_CALL_UPDATE", id: "call_1", result: "ok", status: "completed" },
+			// two calls announced but never dispatched (stream cut mid-batch)
+			{ type: "TOOL_CALL_START", toolCall: tool("call_2", "bash") },
+			{ type: "TOOL_CALL_START", toolCall: tool("call_3", "bash") },
+		]);
+
+	it("STREAM_COMPLETE marks still-running tool calls as error, not running", () => {
+		const s = streamReducer(orphanState(), { type: "STREAM_COMPLETE" });
+		const assistant = s.messages[s.messages.length - 1];
+		const byId = Object.fromEntries((assistant.toolCalls ?? []).map((t) => [t.id, t]));
+		expect(byId.call_1.status).toBe("completed");
+		expect(byId.call_2.status).toBe("error");
+		expect(byId.call_3.status).toBe("error");
+		expect(byId.call_2.isError).toBe(true);
+		// no tool call left in the "running" purgatory
+		expect((assistant.toolCalls ?? []).some((t) => t.status === "running")).toBe(false);
+		expect(s.streamingMessage).toBeNull();
+	});
+
+	it("ABORT_STREAM marks still-running tool calls as error before committing", () => {
+		const s = streamReducer(orphanState(), { type: "ABORT_STREAM" });
+		const assistant = s.messages[s.messages.length - 1];
+		expect((assistant.toolCalls ?? []).some((t) => t.status === "running")).toBe(false);
+		const errored = (assistant.toolCalls ?? []).filter((t) => t.status === "error");
+		expect(errored.map((t) => t.id).sort()).toEqual(["call_2", "call_3"]);
+		// the errored calls carry a human-readable reason, not an empty result
+		expect(errored[0].result?.length).toBeGreaterThan(0);
+	});
+
+	it("leaves an all-completed batch untouched", () => {
+		const s = streamReducer(
+			run([
+				{ type: "START_STREAM", prompt: "x" },
+				{ type: "TURN_RESET" },
+				{ type: "TOOL_CALL_START", toolCall: tool("t1", "bash") },
+				{ type: "TOOL_CALL_UPDATE", id: "t1", result: "ok", status: "completed" },
+				{ type: "TEXT_DELTA", delta: "done" },
+			]),
+			{ type: "STREAM_COMPLETE" },
+		);
+		const assistant = s.messages[s.messages.length - 1];
+		expect(assistant.toolCalls?.[0].status).toBe("completed");
+	});
+});

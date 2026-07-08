@@ -180,6 +180,40 @@ function dedupeLastSegment(segments: string[]): string[] {
 /** Initial tool phase state */
 export const INITIAL_TOOL_PHASE: ToolPhase | null = null;
 
+/**
+ * Reason attached to tool calls orphaned by a truncated/aborted stream (#329).
+ */
+export const ORPHANED_TOOL_CALL_RESULT =
+	"Tool call was never dispatched — the response stream ended before it ran.";
+
+/**
+ * Reconcile a finalized assistant message so no tool call is committed to the
+ * transcript still marked `running` (#329). The opencode-go bridge can
+ * truncate the provider stream mid tool-call batch, leaving announced-but-
+ * never-dispatched tool calls stuck `running` forever. On turn finalize
+ * (STREAM_COMPLETE / ABORT_STREAM) we flip those to `error` with a clear
+ * reason so the UI shows a failed call instead of a spinner that never
+ * resolves. Returns the same reference when nothing needs changing so React
+ * reference-equality checks stay cheap.
+ */
+function reconcileOrphanedToolCalls(msg: ChatMessage): ChatMessage {
+	const calls = msg.toolCalls;
+	if (!calls || !calls.some((tc) => tc.status === "running")) return msg;
+	return {
+		...msg,
+		toolCalls: calls.map((tc) =>
+			tc.status === "running"
+				? {
+						...tc,
+						status: "error" as const,
+						isError: true,
+						result: tc.result || ORPHANED_TOOL_CALL_RESULT,
+					}
+				: tc,
+		),
+	};
+}
+
 export function streamReducer(state: StreamState, action: StreamAction): StreamState {
 	switch (action.type) {
 		case "START_STREAM":
@@ -413,7 +447,7 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
 				...state,
 				isRunning: false,
 				status: "idle",
-				messages: [...state.messages, { ...msg, isStreaming: false }],
+				messages: [...state.messages, { ...reconcileOrphanedToolCalls(msg), isStreaming: false }],
 				streamingMessage: null,
 			};
 		}
@@ -432,7 +466,10 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
 				status: "error",
 				error: action.error,
 				messages: hasContent
-					? [...state.messages, { ...(msg as ChatMessage), isStreaming: false }]
+					? [
+							...state.messages,
+							{ ...reconcileOrphanedToolCalls(msg as ChatMessage), isStreaming: false },
+						]
 					: state.messages,
 				streamingMessage: null,
 			};
@@ -450,7 +487,10 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
 					...state,
 					isRunning: false,
 					status: "idle",
-					messages: [...state.messages, { ...current, isStreaming: false }],
+					messages: [
+						...state.messages,
+						{ ...reconcileOrphanedToolCalls(current as ChatMessage), isStreaming: false },
+					],
 					streamingMessage: null,
 				};
 			}

@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
 	CONTINUATION_MSG,
 	MAX_CONTINUATIONS,
+	isEmptyStop,
 	isTextOnlyStop,
+	isUnfinishedToolUse,
 	lastAssistantMessage,
 	sessionHasToolCalls,
+	shouldContinue,
 } from "./continuation.js";
 
 // ─── helpers to build fake session state ────────────────────────────────────
@@ -53,6 +56,38 @@ function assistantTextAndTool(): unknown {
 
 function assistantAborted(): unknown {
 	return { role: "assistant", stopReason: "aborted", content: [] };
+}
+
+/**
+ * idx-2 shape (#329): the model requested tools (stopReason "toolUse") but the
+ * agent loop returned without ever producing a final summary turn. In pi SDK
+ * state the last *assistant* message is this toolUse message; the completed
+ * tools are separate `toolResult` messages that follow it.
+ */
+function assistantToolUse(ids: string[] = ["call_1"]): unknown {
+	return {
+		role: "assistant",
+		stopReason: "toolUse",
+		content: ids.map((id) => ({ type: "toolCall", id, name: "bash", arguments: {} })),
+	};
+}
+
+function toolResult(id: string): unknown {
+	return { role: "toolResult", toolCallId: id, toolName: "bash", content: [], isError: false };
+}
+
+/** idx-2 alt shape: a clean "stop" that produced no text and no tool call. */
+function assistantEmptyStop(): unknown {
+	return { role: "assistant", stopReason: "stop", content: [] };
+}
+
+/** A thinking-only stop that produced no visible answer and called no tool. */
+function assistantThinkingOnly(): unknown {
+	return {
+		role: "assistant",
+		stopReason: "stop",
+		content: [{ type: "thinking", thinking: "hmm" }],
+	};
 }
 
 function assistantError(): unknown {
@@ -150,6 +185,103 @@ describe("sessionHasToolCalls", () => {
 	it("returns false when session shape is wrong", () => {
 		expect(sessionHasToolCalls({})).toBe(false);
 		expect(sessionHasToolCalls(null)).toBe(false);
+	});
+});
+
+// ─── isEmptyStop (#329 idx-2 empty content) ──────────────────────────────────
+
+describe("isEmptyStop", () => {
+	it("returns true for a clean stop with empty content", () => {
+		expect(isEmptyStop(assistantEmptyStop())).toBe(true);
+	});
+
+	it("returns true for a thinking-only stop (no visible answer, no tool)", () => {
+		expect(isEmptyStop(assistantThinkingOnly())).toBe(true);
+	});
+
+	it("returns false when the turn produced visible text", () => {
+		expect(isEmptyStop(assistantText())).toBe(false);
+	});
+
+	it("returns false when the turn produced a tool call", () => {
+		expect(isEmptyStop(assistantToolUse())).toBe(false);
+	});
+
+	it("returns false for aborted / error stops (handled elsewhere)", () => {
+		expect(isEmptyStop(assistantAborted())).toBe(false);
+		expect(isEmptyStop(assistantError())).toBe(false);
+	});
+
+	it("returns false for null / non-object", () => {
+		expect(isEmptyStop(null)).toBe(false);
+		expect(isEmptyStop(undefined)).toBe(false);
+	});
+});
+
+// ─── isUnfinishedToolUse (#329 idx-2 no-summary) ─────────────────────────────
+
+describe("isUnfinishedToolUse", () => {
+	it("returns true when the last assistant msg is a toolUse whose results are all present", () => {
+		const session = makeSession([
+			userMsg(),
+			assistantToolUse(["call_1", "call_2"]),
+			toolResult("call_1"),
+			toolResult("call_2"),
+		]);
+		expect(isUnfinishedToolUse(session)).toBe(true);
+	});
+
+	it("returns false when a tool result is still missing (truncated batch — idx 10)", () => {
+		// Re-prompting here would append to a malformed (dangling tool-call)
+		// conversation, so continuation must NOT fire.
+		const session = makeSession([
+			userMsg(),
+			assistantToolUse(["call_1", "call_2"]),
+			toolResult("call_1"),
+		]);
+		expect(isUnfinishedToolUse(session)).toBe(false);
+	});
+
+	it("returns false when the last assistant msg is a normal text stop", () => {
+		const session = makeSession([userMsg(), assistantWithToolCall(), toolResult("x"), assistantText()]);
+		expect(isUnfinishedToolUse(session)).toBe(false);
+	});
+
+	it("returns false for an empty session", () => {
+		expect(isUnfinishedToolUse(makeSession([]))).toBe(false);
+	});
+});
+
+// ─── shouldContinue (#329 extended coverage) ─────────────────────────────────
+
+describe("shouldContinue", () => {
+	it("fires on text-only narration mid-workflow (#325, unchanged)", () => {
+		const session = makeSession([userMsg(), assistantWithToolCall(), toolResult("x"), assistantText()]);
+		expect(shouldContinue(session)).toBe(true);
+	});
+
+	it("fires on empty-content stop mid-workflow (#329 idx-2 alt)", () => {
+		const session = makeSession([userMsg(), assistantWithToolCall(), toolResult("x"), assistantEmptyStop()]);
+		expect(shouldContinue(session)).toBe(true);
+	});
+
+	it("fires when tools completed but no summary turn was produced (#329 idx-2)", () => {
+		const session = makeSession([
+			userMsg(),
+			assistantToolUse(["call_1"]),
+			toolResult("call_1"),
+		]);
+		expect(shouldContinue(session)).toBe(true);
+	});
+
+	it("does NOT fire in a pure chat session (no tool calls anywhere)", () => {
+		expect(shouldContinue(makeSession([userMsg(), assistantText()]))).toBe(false);
+		expect(shouldContinue(makeSession([userMsg(), assistantEmptyStop()]))).toBe(false);
+	});
+
+	it("does NOT fire when a tool result is missing (truncated batch — idx 10)", () => {
+		const session = makeSession([userMsg(), assistantToolUse(["call_1", "call_2"]), toolResult("call_1")]);
+		expect(shouldContinue(session)).toBe(false);
 	});
 });
 
