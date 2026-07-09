@@ -191,6 +191,7 @@ import {
 import { handleClearQueueCommand, handleFollowUpCommand, handleSteerCommand } from "./steering.js";
 import { CONTINUATION_MSG, MAX_CONTINUATIONS, shouldContinue } from "./continuation.js";
 import { runTaskFire } from "./task-fire.js";
+import { reconcileInterruptedRuns } from "./task-reconcile.js";
 import {
 	deleteTask,
 	getCompletedTasks,
@@ -1723,6 +1724,10 @@ async function main() {
 			retargetTasksWatcher(workspaceCwd);
 		}
 		log("Workspace cwd: %s", workspaceCwd);
+		// #328: flip any interrupted (running/pending) task runs from a prior
+		// session to failed, so the Tasks→Activity timeline never shows a ghost
+		// "running" entry for a fire that died when the app closed.
+		reconcileInterruptedRuns(workspaceCwd);
 		const piDir = piAgentDir();
 		ensureDir(piDir);
 
