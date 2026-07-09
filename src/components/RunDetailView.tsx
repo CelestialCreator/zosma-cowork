@@ -194,9 +194,7 @@ export function RunDetailView({ run: initialRun, taskName, onBack, listRuns }: R
 				<div className="flex-1 px-4 pb-6">
 					<div
 						className={`rounded-lg border px-4 py-3 ${
-							run.status === "failed"
-								? "border-red-500/30 bg-red-500/5"
-								: "border-border bg-card"
+							run.status === "failed" ? "border-red-500/30 bg-red-500/5" : "border-border bg-card"
 						}`}
 					>
 						<p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 mb-2">

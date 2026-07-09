@@ -32,9 +32,7 @@ function failedRun(overrides: Partial<TaskRun> = {}): TaskRun {
 
 describe("RunDetailView — failed run", () => {
 	it("renders the actionable failure reason", () => {
-		render(
-			<RunDetailView run={failedRun()} taskName="Reminder" onBack={() => {}} />,
-		);
+		render(<RunDetailView run={failedRun()} taskName="Reminder" onBack={() => {}} />);
 		expect(screen.getByText(/No model configured/)).toBeInTheDocument();
 		expect(screen.getByText(/Connect an AI model/)).toBeInTheDocument();
 	});
