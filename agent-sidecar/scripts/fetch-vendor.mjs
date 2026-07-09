@@ -60,15 +60,19 @@ export const VENDORED = [
 	},
 	{
 		name: "pi-routines",
-		repo: "https://github.com/zosmaai/pi-routines.git",
+		// TEMP(#328): vendor from the fork commit carrying the fireTask
+		// remove-after-success fix, for local VM verification BEFORE v0.1.2 is
+		// released. Revert to `repo: zosmaai` + `tag: v0.1.2` in Phase 4.
+		repo: "https://github.com/CelestialCreator/pi-routines.git",
+		commit: "3188e27beb5a3542c6cc8174333a8b5a3c0def0c",
 		// Forked scheduler fired ONLY inside Cowork (sets
 		// globalThis.__PI_ROUTINES_ON_FIRE). Imported from src/index.ts; see
 		// agent-sidecar/src/index.ts. Pinned to a VERIFIED release tag — bump
 		// via `npm run vendor:latest` to pull the latest stable release.
-		tag: "v0.1.1",
+		// tag: "v0.1.1",
 		// GitHub repo slug used by `vendor:latest` to query the latest release.
 		releaseRepo: "zosmaai/pi-routines",
-		trim: [".git", ".github", "src/index.test.ts", "node_modules"],
+		trim: [".git", ".github", "src/index.test.ts", "src/cronScheduler.test.ts", "node_modules"],
 		// The fork's relative imports use `.ts` extensions (jiti-friendly). The
 		// sidecar's tsc *emits*, which forbids importing `.ts` extensions, so
 		// rewrite them to `.js` in the cloned tree.
