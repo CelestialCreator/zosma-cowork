@@ -60,16 +60,17 @@ export const VENDORED = [
 	},
 	{
 		name: "pi-routines",
-		// TEMP(#328): vendor from the fork commit carrying the fireTask
-		// remove-after-success fix, for local VM verification BEFORE v0.1.2 is
-		// released. Revert to `repo: zosmaai` + `tag: v0.1.2` in Phase 4.
+		// INTERIM(#328): pinned to v0.1.2 on the CelestialCreator fork, which
+		// carries the fireTask remove-after-success + in-flight guard + bounded
+		// retry fix. Companion upstream PR: zosmaai/pi-routines#2. Once that
+		// merges and zosmaai tags v0.1.2, flip `repo` back to
+		// https://github.com/zosmaai/pi-routines.git (tag stays v0.1.2).
 		repo: "https://github.com/CelestialCreator/pi-routines.git",
-		commit: "3188e27beb5a3542c6cc8174333a8b5a3c0def0c",
 		// Forked scheduler fired ONLY inside Cowork (sets
 		// globalThis.__PI_ROUTINES_ON_FIRE). Imported from src/index.ts; see
 		// agent-sidecar/src/index.ts. Pinned to a VERIFIED release tag — bump
 		// via `npm run vendor:latest` to pull the latest stable release.
-		// tag: "v0.1.1",
+		tag: "v0.1.2",
 		// GitHub repo slug used by `vendor:latest` to query the latest release.
 		releaseRepo: "zosmaai/pi-routines",
 		trim: [".git", ".github", "src/index.test.ts", "src/cronScheduler.test.ts", "node_modules"],
